@@ -34,44 +34,65 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
 ## 🏗️ System Architecture
 
 ```
-                       [ Input Task Backlog: T1, T2, T3 ]
-                                       │
-                                       ▼
-                       [ Git Working Baseline: s_0 ]
-                                       │
-                ┌──────────────────────┼──────────────────────┐
-                ▼                      ▼                      ▼
-        [ Worker Agent 1 ]     [ Worker Agent 2 ]     [ Worker Agent 3 ]
-         (Diff Patch p1)        (Diff Patch p2)        (Diff Patch p3)
-                │                      │                      │
-                └──────────────────────┼──────────────────────┘
-                                       │
-                                       ▼
-                    [ Tree-Sitter AST Conflict Extractor ]
-                    (Functions, Classes, Scopes, Imports)
-                                       │
-                                       ▼
-                    [ NetworkX Conflict Graph G = (V, E) ]
-                                       │
-                                       ▼
-                 [ Maximum Weight Independent Set (MWIS) Solver ]
-                  (Exact Complement Clique / Fractional LP)
-                                       │
-                      ┌────────────────┴────────────────┐
-                      ▼                                 ▼
-         [ Certified Independent Set I* ]     [ Staged Conflicted Edits ]
-              (e.g., {p1, p3})                         (e.g., {p2})
-                      │                                 │
-                      ▼                                 │
-         [ Docker Sandbox Test Runner ]                 │
-               (Pytest Execution)                       │
-                      │                                 │
-                      ▼                                 │
-         [ Commit I* -> New Baseline s_1 ] ◄────────────┘
-                      │                 (Rebase onto s_1)
-                      ▼
-         [ Convergence Check: Remaining Tasks? ] ──► (Cycle 2)
-```
+flowchart TD
+    A["Input Task Backlog<br/>T1, T2, T3"] --> B["Git Working Baseline: s_0"]
+
+    subgraph W["Worker Agents Processing"]
+        direction LR
+        P1["Worker Agent 1<br/>Diff Patch p1"]
+        P2["Worker Agent 2<br/>Diff Patch p2"]
+        P3["Worker Agent 3<br/>Diff Patch p3"]
+    end
+
+    B --> P1
+    B --> P2
+    B --> P3
+
+    subgraph S["Semantic Conflict Analysis"]
+        C["Tree-sitter AST Conflict Extractor<br/>Functions, Classes, Scopes, Imports"]
+        G["NetworkX Conflict Graph<br/>G = V, E"]
+        M["Maximum Weight Independent Set (MWIS)<br/>Solver: Exact Complement Clique / Fractional LP"]
+        C --> G --> M
+    end
+
+    P1 --> C
+    P2 --> C
+    P3 --> C
+
+    subgraph R["Resolution & Validation"]
+        direction LR
+        I["Certified Independent Set<br/>e.g. p1, p3"]
+        T["Docker Sandbox Test Runner<br/>Pytest Execution"]
+        X["Staged Conflicted Edits<br/>e.g. p2"]
+        I --> T
+    end
+
+    M --> I
+    M --> X
+
+    subgraph E["Baseline Evolution"]
+        N["Commit I* to New Baseline s_1"]
+        D{"Convergence Check:<br/>Remaining Tasks?"}
+        NEXT["Cycle 2 / Next Iteration"]
+        N --> D
+        D -->|Yes| NEXT
+    end
+
+    T --> N
+    X --> N
+    D -->|No| DONE(("Process Complete"))
+
+    classDef input fill:#ed8bea,stroke:#333,color:#222;
+    classDef solver fill:#aaa8f5,stroke:#333,color:#222;
+    classDef test fill:#c9f4c9,stroke:#333,color:#222;
+    classDef commit fill:#fffbd0,stroke:#333,color:#222;
+    classDef decision fill:#ffb2b2,stroke:#333,color:#222;
+
+    class A input;
+    class M solver;
+    class T test;
+    class N commit;
+    class D decision;
 
 ---
 
