@@ -19,7 +19,7 @@ def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
     proposals = state.get("proposals", [])
     if not proposals:
         return {
-            "accepted_patches": [],
+            "accepted_patches": state.get("accepted_patches", []),
             "staged_patches": [],
             "is_converged": True,
         }
@@ -37,14 +37,16 @@ def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
     optimizer.build_conflict_graph(opt_payload)
     accepted_ids, rejected_ids = optimizer.solve_mwis()
 
-    accepted = [p for p in proposals if p["id"] in accepted_ids]
+    newly_accepted = [p for p in proposals if p["id"] in accepted_ids]
     staged = [p for p in proposals if p["id"] in rejected_ids]
 
+    # Accumulate accepted patches from prior iterations
+    accumulated_accepted = list(state.get("accepted_patches", [])) + newly_accepted
     new_iter = state.get("iteration", 0) + 1
     max_iter = state.get("max_iterations", 3)
 
     return {
-        "accepted_patches": accepted,
+        "accepted_patches": accumulated_accepted,
         "staged_patches": staged,
         "iteration": new_iter,
         "is_converged": len(staged) == 0 or new_iter >= max_iter,
