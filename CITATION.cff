@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software or reference the discrete block optimization merge methodology, please cite it as below."
+authors:
+  - name: "GraphMerge Research & Engineering Contributors"
+title: "GraphMerge: Parallel AI Agent Collaboration via Graph-Structured Distributed Block Optimization"
+version: 0.1.0
+date-released: 2026-10-22
+url: "https://github.com/graphmerge/graphmerge"
+repository-code: "https://github.com/graphmerge/graphmerge"
+keywords:
+  - "ai-agents"
+  - "multi-agent-systems"
+  - "discrete-optimization"
+  - "maximum-independent-set"
+  - "langgraph"
+  - "software-engineering"
+  - "code-synthesis"
+abstract: >
+  GraphMerge is the world's first open-source reference implementation of graph-structured
+  distributed block optimization for parallel AI coding agents, resolving the merge degradation
+  paradox with a provable 1/chi_f(G) objective preservation guarantee (arXiv:2610.30074).
+preferred-citation:
+  type: article
+  authors:
+    - name: "GraphMerge Contributors"
+  title: "GraphMerge: An Open-Source Architecture for Provably Conflict-Free Parallel AI Agent Code Synthesis"
+  year: 2026
+  notes: "Reference implementation of arXiv:2610.30074"

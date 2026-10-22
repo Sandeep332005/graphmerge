@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphmerge"
+version = "0.1.0"
+description = "Parallel AI Agent Collaboration via Graph-Structured Distributed Block Optimization (arXiv:2610.30074)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "GraphMerge Contributors" }
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Compilers",
+]
+dependencies = [
+    "langgraph>=0.2.30",
+    "langchain-core>=0.3.0",
+    "networkx>=3.3",
+    "tree-sitter>=0.22.0",
+    "tree-sitter-python>=0.21.0",
+    "pydantic>=2.8.0",
+    "pulp>=2.8.0",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "docker>=7.1.0",
+    "ruff>=0.5.0",
+    "black>=24.4.0",
+]
+
+[project.scripts]
+graphmerge = "graphmerge.cli:main"
+graphmerge-mcp = "graphmerge.mcp_server:main"
