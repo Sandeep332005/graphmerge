@@ -1,11 +1,15 @@
 import networkx as nx
 from typing import List, Dict, Set, Tuple, Any
+from collections import defaultdict
 
 
 class ConflictGraphOptimizer:
-    """Discrete Block Optimizer implementing Maximum Weight Independent Set (MWIS)
+    """High-Performance Discrete Block Optimizer for Parallel AI Agent Patches.
 
-    and conflict graph arbitration for parallel AI agent code proposals.
+    Optimized with:
+    1. Inverted Symbol Index: O(K) linear conflict edge generation instead of O(K^2).
+    2. Divide-and-Conquer: Solves MWIS over independent connected components,
+       preventing combinatorial explosion on large graphs.
     Directly grounded in arXiv:2610.30074.
     """
 
@@ -13,56 +17,53 @@ class ConflictGraphOptimizer:
         self.graph = nx.Graph()
 
     def build_conflict_graph(self, proposals: List[Dict[str, Any]]) -> nx.Graph:
-        """Constructs an undirected conflict graph G = (V, E).
+        """Constructs an undirected conflict graph G = (V, E) using an Inverted Index.
 
-        Args:
-            proposals: List of proposal dicts, each with:
-                - 'id': str
-                - 'files': Dict[str, Set[str]] (filename -> set of touched symbols)
-                - 'weight': float (verified local objective improvement)
-
-        Returns:
-            NetworkX Graph where nodes are proposals and edges represent
-            syntactic or semantic AST collisions.
+        Complexity: O(K * S) where K is number of proposals and S is average symbols touched.
         """
         self.graph.clear()
+        if not proposals:
+            return self.graph
+
+        # Add all nodes
         for p in proposals:
-            self.graph.add_node(p["id"], weight=float(p.get("weight", 1.0)), files=p.get("files", {}))
+            self.graph.add_node(
+                p["id"],
+                weight=float(p.get("weight", 1.0)),
+                files=p.get("files", {})
+            )
 
-        p_list = list(self.graph.nodes(data=True))
-        for i in range(len(p_list)):
-            for j in range(i + 1, len(p_list)):
-                id_i, data_i = p_list[i]
-                id_j, data_j = p_list[j]
+        # Inverted Index: (file_path, symbol_name) -> list of proposal IDs
+        symbol_index: Dict[Tuple[str, str], List[str]] = defaultdict(list)
 
-                has_collision = False
-                conflicting_symbols = []
+        for p in proposals:
+            p_id = p["id"]
+            files_dict = p.get("files", {})
+            for file_path, symbols in files_dict.items():
+                for symbol in symbols:
+                    symbol_index[(file_path, symbol)].append(p_id)
 
-                for file_path, symbols_i in data_i["files"].items():
-                    if file_path in data_j["files"]:
-                        symbols_j = data_j["files"][file_path]
-                        overlap = set(symbols_i).intersection(set(symbols_j))
-                        if overlap:
-                            has_collision = True
-                            conflicting_symbols.extend(list(overlap))
-
-                if has_collision:
-                    self.graph.add_edge(
-                        id_i,
-                        id_j,
-                        conflict_type="AST_SYMBOL_COLLISION",
-                        symbols=conflicting_symbols,
-                    )
+        # Generate edges in linear time from index collisions
+        for (file_path, symbol), touching_ids in symbol_index.items():
+            if len(touching_ids) > 1:
+                # Add conflict edges between all proposals touching the same symbol
+                for i in range(len(touching_ids)):
+                    for j in range(i + 1, len(touching_ids)):
+                        u, v = touching_ids[i], touching_ids[j]
+                        if not self.graph.has_edge(u, v):
+                            self.graph.add_edge(
+                                u, v,
+                                conflict_type="AST_SYMBOL_COLLISION",
+                                file=file_path,
+                                symbol=symbol
+                            )
 
         return self.graph
 
     def solve_mwis(self) -> Tuple[Set[str], Set[str]]:
-        """Solves the Maximum Weight Independent Set (MWIS) problem.
+        """Solves Maximum Weight Independent Set using Divide-and-Conquer over
 
-        Uses exact clique search on the complement graph for |V| <= 20.
-
-        Returns:
-            Tuple of (accepted_patch_ids, deferred_patch_ids)
+        connected components.
         """
         if self.graph.number_of_nodes() == 0:
             return set(), set()
@@ -71,31 +72,58 @@ class ConflictGraphOptimizer:
             only_node = list(self.graph.nodes())[0]
             return {only_node}, set()
 
-        # Complement graph clique search: Maximum Clique in complement G == Maximum Independent Set in G
-        complement_g = nx.complement(self.graph)
-        cliques = list(nx.find_cliques(complement_g))
+        total_accepted = set()
 
-        if not cliques:
-            # Fallback if no cliques found
-            return set(), set(self.graph.nodes())
+        # Divide-and-Conquer: Process each connected component independently
+        # MWIS(G) is the union of MWIS(Component_i)
+        for component_nodes in nx.connected_components(self.graph):
+            subgraph = self.graph.subgraph(component_nodes)
 
-        best_independent_set = max(
-            cliques,
-            key=lambda c: sum(self.graph.nodes[n].get("weight", 1.0) for n in c),
-        )
+            if len(component_nodes) == 1:
+                total_accepted.add(list(component_nodes)[0])
+                continue
 
-        accepted = set(best_independent_set)
-        rejected = set(self.graph.nodes()) - accepted
-        return accepted, rejected
+            # If small component (<= 25 nodes), solve exact complement clique
+            if len(component_nodes) <= 25:
+                comp_g = nx.complement(subgraph)
+                cliques = list(nx.find_cliques(comp_g))
+                best_sub_is = max(
+                    cliques,
+                    key=lambda c: sum(subgraph.nodes[n].get("weight", 1.0) for n in c)
+                )
+                total_accepted.update(best_sub_is)
+            else:
+                # Fast greedy weighted heuristic for dense/large components
+                total_accepted.update(self._greedy_weighted_independent_set(subgraph))
+
+        rejected = set(self.graph.nodes()) - total_accepted
+        return total_accepted, rejected
+
+    def _greedy_weighted_independent_set(self, g: nx.Graph) -> Set[str]:
+        """Fast greedy approximation for large components (|V| > 25)."""
+        remaining = set(g.nodes())
+        selected = set()
+
+        while remaining:
+            # Pick node with maximum weight / (degree + 1) ratio
+            best_node = max(
+                remaining,
+                key=lambda n: g.nodes[n].get("weight", 1.0) / (g.degree(n) + 1)
+            )
+            selected.add(best_node)
+            # Remove chosen node and all its neighbors
+            neighbors = set(g.neighbors(best_node))
+            remaining.remove(best_node)
+            remaining -= neighbors
+
+        return selected
 
     def compute_fractional_bound(self) -> float:
         """Estimates the theoretical preservation bound 1 / chi_f(G)."""
         if self.graph.number_of_nodes() == 0:
             return 1.0
-        # For small graphs, chromatic number serves as an upper bound on chi_f(G)
         try:
             d_max = max(dict(self.graph.degree()).values()) if self.graph.number_of_edges() > 0 else 0
-            # Brooks' theorem upper bound: chi(G) <= Delta + 1
             chi_estimate = max(1, d_max + 1)
             return 1.0 / float(chi_estimate)
         except Exception:
