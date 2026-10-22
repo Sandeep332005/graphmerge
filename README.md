@@ -118,9 +118,11 @@ python -m graphmerge.mcp_server
 
 ## 📊 Comprehensive Deliverables & Documentation
 
+* 🌐 **[Live 3D WebGL Architecture Presentation (Interactive)](docs/3d_architecture.html)**: Interactive 3D holographic neural model with camera presets, particle streams, and conflict laser visualization (ready for GitHub Pages).
 * 📄 **[Full Academic Pre-Development Report (PDF)](docs/project_report_graphmerge.pdf)**: 20-page formal specification with literature review, formal math model, and test matrix.
 * 📝 **[Full Academic Pre-Development Report (Markdown)](docs/project_report_graphmerge.md)**: Markdown version with all 17 chapters.
 * 🎨 **[Interactive Architecture Canvas (Excalidraw)](docs/graphmerge_architecture.flowchart.excalidraw)**: 6-layer vector visual flow (open in [excalidraw.com](https://excalidraw.com) or Nimbalyst).
+* 🔄 **[2D Simulation Engine (HTML)](docs/live_graph.html)**: Real-time step-by-step Vis.js network conflict graph simulator.
 
 ---
 
