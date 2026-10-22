@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphMerge: Live Visual Graph & Simulation Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/dist/vis-network.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --bg-card-hover: #334155;
+    --border-color: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-green: #4ade80;
+    --accent-red: #f87171;
+    --accent-yellow: #facc15;
+    --accent-purple: #c084fc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  header {
+    background: #090d16;
+    border-bottom: 1px solid var(--border-color);
+    padding: 16px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .title-group h1 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-blue);
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+  .title-group p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 3px;
+  }
+
+  .main-container {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    padding: 20px;
+    flex: 1;
+  }
+
+  /* Left Panel: Pipeline Controls */
+  .control-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .panel-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue);
+    margin-bottom: 4px;
+  }
+
+  .stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .stage-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s ease;
+  }
+  .stage-item.active {
+    border-color: var(--accent-blue);
+    background: rgba(56, 189, 248, 0.12);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+  }
+  .stage-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+  .stage-item.active .stage-num {
+    background: var(--accent-blue);
+    color: #000;
+  }
+  .stage-info h4 {
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+  .stage-info p {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  button {
+    background: #0284c7;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  button:hover { background: #0369a1; }
+  button.secondary {
+    background: #334155;
+    color: var(--text-primary);
+  }
+  button.secondary:hover { background: #475569; }
+
+  /* Right Panel: Live Visual Graph */
+  .graph-wrapper {
+    display: grid;
+    grid-template-rows: 1fr 220px;
+    gap: 20px;
+  }
+  .canvas-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .canvas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .metric-pills {
+    display: flex;
+    gap: 10px;
+  }
+  .pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-color);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+  .pill span { font-weight: 700; color: var(--accent-green); }
+
+  #network-canvas {
+    flex: 1;
+    width: 100%;
+    min-height: 420px;
+    background: #0b1120;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+  }
+
+  /* Bottom Console Logs */
+  .log-card {
+    background: #090d16;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .log-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  #log-stream {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.78rem;
+    color: #38bdf8;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .log-entry { line-height: 1.4; }
+  .log-entry.success { color: #4ade80; }
+  .log-entry.warn { color: #facc15; }
+  .log-entry.conflict { color: #f87171; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-group">
+    <h1>GraphMerge Live Visual Graph Engine <span class="badge">arXiv:2610.30074</span></h1>
+    <p>Real-time simulation of discrete block optimization on AST symbol dependency graphs</p>
+  </div>
+  <div class="metric-pills">
+    <div class="pill">Preserved Gain: <span id="metric-gain">0.0</span></div>
+    <div class="pill">Theoretical Bound: <span id="metric-bound">1.0</span></div>
+    <div class="pill">Status: <span id="metric-status" style="color: var(--accent-blue)">Ready</span></div>
+  </div>
+</header>
+
+<div class="main-container">
+  <!-- Left Side: Interactive Pipeline Controls -->
+  <div class="control-panel">
+    <div class="panel-title">Orchestration Stages</div>
+    <div class="stage-list">
+      <div class="stage-item active" id="stage-1">
+        <div class="stage-num">1</div>
+        <div class="stage-info">
+          <h4>Backlog Ingestion & Fan-Out</h4>
+          <p>T1, T2, T3 assigned to parallel workers</p>
+        </div>
+      </div>
+      <div class="stage-item" id="stage-2">
+        <div class="stage-num">2</div>
+        <div class="stage-info">
+          <h4>AST Symbol Collision Extraction</h4>
+          <p>Tree-Sitter parses modified function scopes</p>
+        </div>
+      </div>
+      <div class="stage-item" id="stage-3">
+        <div class="stage-num">3</div>
+        <div class="stage-info">
+          <h4>Conflict Graph Construction G=(V,E)</h4>
+          <p>NetworkX models nodes & conflict edges</p>
+        </div>
+      </div>
+      <div class="stage-item" id="stage-4">
+        <div class="stage-num">4</div>
+        <div class="stage-info">
+          <h4>MWIS Optimization Solver</h4>
+          <p>Certifies Independent Set I* vs Staged p2</p>
+        </div>
+      </div>
+      <div class="stage-item" id="stage-5">
+        <div class="stage-num">5</div>
+        <div class="stage-info">
+          <h4>Docker Sandboxed Verification</h4>
+          <p>Isolated patch test & regression validation</p>
+        </div>
+      </div>
+      <div class="stage-item" id="stage-6">
+        <div class="stage-num">6</div>
+        <div class="stage-info">
+          <h4>Commit & Rebase Loop</h4>
+          <p>Commit I* to s_1, rebase p2 for Cycle 2</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button onclick="nextStep()" id="btn-next">Next Step ▶</button>
+      <button class="secondary" onclick="autoPlay()" id="btn-play">Auto Play ⚡</button>
+      <button class="secondary" onclick="resetSim()" style="grid-column: span 2;">Reset Simulation ↺</button>
+    </div>
+  </div>
+
+  <!-- Right Side: Live Canvas & Console -->
+  <div class="graph-wrapper">
+    <div class="canvas-card">
+      <div class="canvas-header">
+        <h3 style="font-size: 0.95rem; font-weight: 600;">Interactive Conflict Graph G = (V, E)</h3>
+        <span style="font-size: 0.75rem; color: var(--text-secondary);">Click or drag nodes to inspect dependencies</span>
+      </div>
+      <div id="network-canvas"></div>
+    </div>
+
+    <div class="log-card">
+      <div class="log-title">Live Execution Trace & Event Bus</div>
+      <div id="log-stream">
+        <div class="log-entry">[0.00s] GraphMerge Engine Initialized. Working branch at baseline s_0.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentStep = 1;
+  let network = null;
+  let nodes = null;
+  let edges = null;
+  let playInterval = null;
+
+  function initNetwork() {
+    nodes = new vis.DataSet([
+      { id: 'T1', label: 'Task 1: Fix ZeroDiv\nmath_utils.py', color: { background: '#0284c7', border: '#38bdf8' }, shape: 'box', font: { color: '#fff', size: 13 }, x: -280, y: -160, fixed: true },
+      { id: 'T2', label: 'Task 2: Type Validation\nmath_utils.py', color: { background: '#0284c7', border: '#38bdf8' }, shape: 'box', font: { color: '#fff', size: 13 }, x: 0, y: -160, fixed: true },
+      { id: 'T3', label: 'Task 3: ISO Format\nformatters.py', color: { background: '#0284c7', border: '#38bdf8' }, shape: 'box', font: { color: '#fff', size: 13 }, x: 280, y: -160, fixed: true },
+
+      { id: 'p1', label: 'Worker 1: Patch p1\nGain: +10.0', color: { background: '#334155', border: '#64748b' }, shape: 'ellipse', font: { color: '#fff', size: 12 }, x: -220, y: 0, fixed: true },
+      { id: 'p2', label: 'Worker 2: Patch p2\nGain: +8.0', color: { background: '#334155', border: '#64748b' }, shape: 'ellipse', font: { color: '#fff', size: 12 }, x: 0, y: 0, fixed: true },
+      { id: 'p3', label: 'Worker 3: Patch p3\nGain: +12.0', color: { background: '#334155', border: '#64748b' }, shape: 'ellipse', font: { color: '#fff', size: 12 }, x: 220, y: 0, fixed: true }
+    ]);
+
+    edges = new vis.DataSet([
+      { from: 'T1', to: 'p1', arrows: 'to', color: { color: '#475569' }, dashes: true },
+      { from: 'T2', to: 'p2', arrows: 'to', color: { color: '#475569' }, dashes: true },
+      { from: 'T3', to: 'p3', arrows: 'to', color: { color: '#475569' }, dashes: true }
+    ]);
+
+    const container = document.getElementById('network-canvas');
+    const data = { nodes: nodes, edges: edges };
+    const options = {
+      physics: { enabled: false },
+      interaction: { hover: true, zoomView: true, dragView: true }
+    };
+    network = new vis.Network(container, data, options);
+  }
+
+  function addLog(msg, type = '') {
+    const stream = document.getElementById('log-stream');
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    stream.appendChild(div);
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  function setActiveStage(num) {
+    for (let i = 1; i <= 6; i++) {
+      const el = document.getElementById(`stage-${i}`);
+      if (i === num) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+  }
+
+  function nextStep() {
+    if (currentStep === 1) {
+      // Step 2: AST Analysis
+      setActiveStage(2);
+      addLog("Tree-Sitter AST Analysis: Parsing patch diffs...", "warn");
+      addLog("-> p1 touches symbol 'math_utils.calculate_ratio' (lines 20-30)", "warn");
+      addLog("-> p2 touches symbol 'math_utils.calculate_ratio' (lines 15-25)", "warn");
+      addLog("-> p3 touches symbol 'formatters.format_iso' (lines 50-65)", "warn");
+      document.getElementById('metric-status').textContent = "AST Collisions Detected";
+      document.getElementById('metric-status').style.color = "var(--accent-yellow)";
+      currentStep = 2;
+    } else if (currentStep === 2) {
+      // Step 3: Conflict Graph G=(V,E)
+      setActiveStage(3);
+      addLog("NetworkX Conflict Graph Built: Adding edge (p1, p2) for symbol collision!", "conflict");
+      edges.add({
+        id: 'conflict-p1-p2',
+        from: 'p1',
+        to: 'p2',
+        color: { color: '#f87171', highlight: '#ef4444' },
+        width: 4,
+        label: 'CONFLICT: math_utils.calculate_ratio',
+        font: { color: '#f87171', size: 10, align: 'top' }
+      });
+      document.getElementById('metric-bound').textContent = "0.5 (1/chi_f)";
+      currentStep = 3;
+    } else if (currentStep === 3) {
+      // Step 4: MWIS Solver
+      setActiveStage(4);
+      addLog("Solving Maximum Weight Independent Set (MWIS)...", "warn");
+      addLog("Independent Sets evaluated: {p1, p3} (weight: 22.0) vs {p2, p3} (weight: 20.0)", "warn");
+      addLog("CERTIFIED OPTIMAL INDEPENDENT SET: {p1, p3} (Preserves 22.0 objective gain)", "success");
+      
+      // Highlight p1 and p3 GREEN, p2 RED
+      nodes.update([
+        { id: 'p1', color: { background: '#16a34a', border: '#4ade80' }, font: { color: '#fff', size: 13 } },
+        { id: 'p3', color: { background: '#16a34a', border: '#4ade80' }, font: { color: '#fff', size: 13 } },
+        { id: 'p2', color: { background: '#991b1b', border: '#f87171' }, font: { color: '#fca5a5', size: 11 } }
+      ]);
+      document.getElementById('metric-gain').textContent = "+22.0";
+      document.getElementById('metric-status').textContent = "I* Certified";
+      document.getElementById('metric-status').style.color = "var(--accent-green)";
+      currentStep = 4;
+    } else if (currentStep === 4) {
+      // Step 5: Sandbox
+      setActiveStage(5);
+      addLog("Mounting patches {p1, p3} into ephemeral Docker container...", "warn");
+      addLog("Running: pytest --maxfail=1 tests/ ...", "warn");
+      addLog("Docker Sandbox Verification PASSED: 18/18 tests green. Zero regressions.", "success");
+      document.getElementById('metric-status').textContent = "Sandbox Verified";
+      currentStep = 5;
+    } else if (currentStep === 5) {
+      // Step 6: Commit & Rebase Loop
+      setActiveStage(6);
+      addLog("Git Commit: Patches {p1, p3} committed to baseline state s_1.", "success");
+      addLog("Rebase Engine: Re-basing conflicted patch p2 onto newly committed state s_1...", "warn");
+      addLog("Rebase successful! Patch p2 staged for Cycle 2 execution.", "success");
+      addLog("Cycle 1 complete. Convergence gap closing geometrically.", "success");
+      document.getElementById('metric-status').textContent = "Cycle 1 Committed (s_1)";
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('btn-next').textContent = "Converged (s_1)";
+      if (playInterval) clearInterval(playInterval);
+      currentStep = 6;
+    }
+  }
+
+  function autoPlay() {
+    if (playInterval) {
+      clearInterval(playInterval);
+      playInterval = null;
+      document.getElementById('btn-play').textContent = "Auto Play ⚡";
+    } else {
+      document.getElementById('btn-play').textContent = "Pause ⏸";
+      playInterval = setInterval(() => {
+        if (currentStep < 6) {
+          nextStep();
+        } else {
+          clearInterval(playInterval);
+          playInterval = null;
+          document.getElementById('btn-play').textContent = "Auto Play ⚡";
+        }
+      }, 1400);
+    }
+  }
+
+  function resetSim() {
+    if (playInterval) clearInterval(playInterval);
+    playInterval = null;
+    currentStep = 1;
+    document.getElementById('btn-play').textContent = "Auto Play ⚡";
+    document.getElementById('btn-next').disabled = false;
+    document.getElementById('btn-next').textContent = "Next Step ▶";
+    document.getElementById('metric-gain').textContent = "0.0";
+    document.getElementById('metric-bound').textContent = "1.0";
+    document.getElementById('metric-status').textContent = "Ready";
+    document.getElementById('metric-status').style.color = "var(--accent-blue)";
+    document.getElementById('log-stream').innerHTML = '<div class="log-entry">[0.00s] GraphMerge Engine Reset. Working branch at baseline s_0.</div>';
+    setActiveStage(1);
+    initNetwork();
+  }
+
+  window.onload = initNetwork;
+</script>
+</body>
+</html>
