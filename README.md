@@ -194,9 +194,47 @@ print("Deferred for Round 2 Rebase:", rejected)  # {'p2'}
 ```
 
 ### 3. Model Context Protocol (MCP) Server
-Launch the MCP server to integrate directly with **Cursor**, **Claude Code**, or **Nimbalyst**:
+
+GraphMerge exposes a high-performance **Model Context Protocol (MCP)** server with stdio transport, enabling AI coding assistants (**Google Antigravity**, **Claude Code**, **Cursor**, **Windsurf**) to arbitrate concurrent agent diffs directly from their prompt context.
+
+#### Available MCP Tools:
+| Tool Name | Parameters | Description |
+|---|---|---|
+| `arbitrate_diff_patches` | `diffs_json: str` | Ingests a JSON array of raw agent diffs, parses AST definitions and call graphs, detects Tier 1 & Tier 2 collisions, and returns certified Maximum Weight Independent Set $\mathcal{I}^*$ with preservation bound $\frac{1}{\chi_f(G)}$. |
+| `check_patch_collision` | `diff_a: str, diff_b: str` | Fast pair-wise collision check returning whether two diffs can be merged concurrently or collide (Tier 1 Syntactic definition vs. Tier 2 Cross-File Def-Use). |
+| `solve_merge` | `proposals_json: str` | Solves discrete MWIS for pre-extracted symbol touch sets. |
+| `generate_reprompt_instruction` | `task_id, colliding_patch_ids, colliding_symbols, baseline_version` | Generates context-rich re-prompt instructions for deferred agents in Cycle 2. |
+
+#### Setup in Claude Code:
 ```bash
-python -m graphmerge.mcp_server
+claude mcp add graphmerge -- python3 -m graphmerge.mcp_server
+```
+
+#### Setup in Google Antigravity (AGY):
+Add to `~/.gemini/config/mcp_config.json` or workspace `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "graphmerge": {
+      "command": "python3",
+      "args": ["-m", "graphmerge.mcp_server"],
+      "description": "GraphMerge AST Conflict Arbiter & Block Optimizer"
+    }
+  }
+}
+```
+
+#### Setup in Cursor:
+Add to `.cursor/mcp.json` or `~/.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "graphmerge": {
+      "command": "python3",
+      "args": ["-m", "graphmerge.mcp_server"]
+    }
+  }
+}
 ```
 
 ---

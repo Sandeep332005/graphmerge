@@ -1,8 +1,13 @@
 import re
 import ast
 import hashlib
-from typing import Set, List, Dict, Optional, Any
-from graphmerge.orchestration.state import SymbolAnalysis
+from typing import Set, List, Dict, Optional, Any, TypedDict
+
+
+class SymbolAnalysis(TypedDict, total=False):
+    definitions: Set[str]  # Functions or classes defined / modified
+    calls: Set[str]        # External or internal functions called in modified lines
+    imports: Set[str]      # Modules or names imported
 
 try:
     import tree_sitter_python as tspython
@@ -249,3 +254,22 @@ def validate_diff_syntax(diff_text: str) -> bool:
                 return False
     except Exception:
         return False
+
+
+def extract_hunk_code(diff_text: str) -> str:
+    """Reconstructs readable Python code from unified diff hunks by filtering headers
+    and preserving added and context lines.
+    """
+    lines = []
+    for line in diff_text.splitlines():
+        if line.startswith(("diff --git", "--- ", "+++ ", "@@", "index ")):
+            continue
+        if line.startswith("-"):
+            continue
+        if line.startswith("+"):
+            lines.append(line[1:])
+        elif line.startswith(" "):
+            lines.append(line[1:])
+        else:
+            lines.append(line)
+    return "\n".join(lines)

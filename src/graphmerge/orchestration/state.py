@@ -16,10 +16,7 @@ class CollisionContext(TypedDict, total=False):
     reprompt_instruction: str
 
 
-class SymbolAnalysis(TypedDict, total=False):
-    definitions: Set[str]  # Functions or classes defined / modified
-    calls: Set[str]        # External or internal functions called in modified lines
-    imports: Set[str]      # Modules or names imported
+from graphmerge.analysis.ast_parser import SymbolAnalysis
 
 
 class AgentProposal(TypedDict, total=False):

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "graphmerge": {
+      "command": "python3",
+      "args": ["-m", "graphmerge.mcp_server"],
+      "description": "GraphMerge: Discrete Block Optimizer & AST Conflict Arbiter for Parallel AI Coding Agents (arXiv:2610.30074)"
+    }
+  }
+}
