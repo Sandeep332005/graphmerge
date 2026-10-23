@@ -15,7 +15,7 @@
 
 When multiple autonomous coding agents (Devin, SWE-agent, AutoGen, CrewAI) operate concurrently on a shared codebase, their independently verified code patches frequently conflict:
 * **Syntactic Conflicts:** Overlapping diffs breaking standard `git merge`.
-* **Semantic Regressions:** Breaking shared function signatures, call graphs, or global state.
+* **Semantic Regressions:** Breaking shared function signatures, cross-file call graphs, or global state.
 
 Current industry solutions either **force agents into an $O(N)$ sequential queue** (painfully slow) or use an **LLM judge** to merge code (stochastic, hallucinations, and code loss).
 
@@ -24,14 +24,93 @@ Current industry solutions either **force agents into an $O(N)$ sequential queue
 GraphMerge models parallel multi-agent code integration as **Discrete Block Optimization on a Symbol Conflict Graph $G=(V, E)$**:
 
 1. **Nodes ($V$):** Each proposed agent diff $p_i$.
-2. **Edges ($E$):** Semantic AST symbol collisions detected via **Tree-Sitter**.
+2. **Edges ($E$):** Semantic AST symbol collisions detected via **Tree-Sitter** across two tiers:
+   - *Tier 1:* Syntactic AST function, method, and class scope collisions.
+   - *Tier 2:* Cross-file semantic Definition-Use (Def-Use) call graph & import collisions.
 3. **Independent Sets ($\mathcal{I}^* \subseteq V$):** Certified conflict-free patch combinations.
 4. **Theoretical Guarantee:** Proved in *arXiv:2610.30074*, an optimal fractional coloring preserves at least a **$\frac{1}{\chi_f(G)}$ fraction** of verified local improvement.
-5. **Geometric Convergence:** Conflicted patches are staged, rebased, and resolved in successive iterations, achieving provably optimal code synthesis.
+5. **Adaptive Re-Prompting:** Conflicted patches receive rich collision context and diffs from committed patches, allowing workers to regenerate clean, adapted patches for Cycle 2.
 
 ---
 
-## 🏗️ Hardened System Architecture
+## 🏗️ System Architecture
+
+### 1. Interactive Workflow Diagram
+
+```mermaid
+flowchart TD
+    A["Input Task Backlog<br/>T1, T2, T3"] --> B["Git Working Baseline: s_0"]
+
+    subgraph W["1. Parallel Worker Agents"]
+        direction LR
+        P1["Worker Agent 1<br/>Diff Patch p1"]
+        P2["Worker Agent 2<br/>Diff Patch p2"]
+        P3["Worker Agent 3<br/>Diff Patch p3"]
+    end
+
+    B --> P1
+    B --> P2
+    B --> P3
+
+    subgraph PV["2. Worker Local Pre-Verification"]
+        V1["AST Syntax & Delta f_1 > 0"]
+        V2["AST Syntax & Delta f_2 > 0"]
+        V3["AST Syntax & Delta f_3 > 0"]
+    end
+
+    P1 --> V1
+    P2 --> V2
+    P3 --> V3
+
+    subgraph S["3. Two-Tier Semantic Conflict Analysis"]
+        C["Two-Tier AST & Def-Use Extractor<br/>Tier 1: Scopes | Tier 2: Call Graph"]
+        G["NetworkX Conflict Graph<br/>G = (V, E)"]
+        M["Maximum Weight Independent Set (MWIS)<br/>Solver: Exact Complement Clique / Fractional LP"]
+        C --> G --> M
+    end
+
+    V1 --> C
+    V2 --> C
+    V3 --> C
+
+    subgraph R["4. Resolution & Sandbox Validation"]
+        direction LR
+        I["Certified Independent Set I*<br/>e.g. {p1, p3}"]
+        T["Sandbox Test Runner<br/>Pytest Execution"]
+        X["Staged Conflicted Edits<br/>e.g. {p2}"]
+        I --> T
+    end
+
+    M --> I
+    M --> X
+
+    subgraph E["5. Baseline Evolution & Adaptive Loop"]
+        N["Atomic Commit I* to Baseline s_1"]
+        D{"Convergence Check:<br/>Remaining Tasks?"}
+        AR["Adaptive Agent Re-Prompting Node<br/>Collision Context + I* Diffs onto s_1"]
+        N --> D
+        D -->|Yes: Deferred Tasks| AR
+        AR -->|Cycle 2 Adapted Patch| P2
+    end
+
+    T --> N
+    X --> AR
+    D -->|No: All Backlog Resolved| DONE(("Convergence Achieved"))
+
+    classDef input fill:#ed8bea,stroke:#333,color:#222;
+    classDef solver fill:#aaa8f5,stroke:#333,color:#222;
+    classDef test fill:#c9f4c9,stroke:#333,color:#222;
+    classDef commit fill:#fffbd0,stroke:#333,color:#222;
+    classDef decision fill:#ffb2b2,stroke:#333,color:#222;
+
+    class A input;
+    class M solver;
+    class T test;
+    class N commit;
+    class D decision;
+```
+
+### 2. High-Level Flowchart
 
 ```
                        [ Input Task Backlog: T1, T2, T3 ]
@@ -85,7 +164,7 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
 
 ### 1. Installation
 ```bash
-git clone https://github.com/graphmerge/graphmerge.git
+git clone https://github.com/Sandeep332005/graphmerge.git
 cd graphmerge
 python3 -m venv venv
 source venv/bin/activate
@@ -142,7 +221,7 @@ If you use GraphMerge in your research or reference this discrete block optimiza
   author={GraphMerge Contributors},
   journal={GitHub Repository},
   year={2026},
-  url={https://github.com/graphmerge/graphmerge},
+  url={https://github.com/Sandeep332005/graphmerge},
   note={Reference implementation of arXiv:2610.30074}
 }
 ```
@@ -150,7 +229,7 @@ If you use GraphMerge in your research or reference this discrete block optimiza
 ```bibtex
 @article{li2026parallel,
   title={Parallel AI Agent Collaboration as Graph-Structured Distributed Block Optimization},
-  author={Li, Hanmin and others},
+  author={Li, Hanmin and Demidovich, Yury and Richt{\'a}rik, Peter},
   journal={arXiv preprint arXiv:2610.30074},
   year={2026}
 }
