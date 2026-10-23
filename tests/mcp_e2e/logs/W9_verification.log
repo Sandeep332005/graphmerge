@@ -1,0 +1,2 @@
+[2026-10-23 21:53:42] Graph nodes: ['a', 'b', 'c'], edges: [('a', 'b')]
+[2026-10-23 21:53:42] MWIS accepted: {'c', 'a'}, bound: 0.5
