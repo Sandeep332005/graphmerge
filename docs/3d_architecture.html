@@ -419,19 +419,19 @@
     createHoloCard(0, 8.5, 0, 14, 2.2, 0.8, colors.cyan, "LAYER 1: TASK BACKLOG & GIT BASELINE", "Tickets {T1, T2, T3} -> Workspace State s_0");
 
     // LAYER 2: Parallel Workers W1, W2, W3 (Y = +4.5)
-    createHoloCard(-6, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 1", "Task T1 -> Diff p1 (Gain: +10)");
-    createHoloCard(0, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 2", "Task T2 -> Diff p2 (Gain: +8)");
-    createHoloCard(6, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 3", "Task T3 -> Diff p3 (Gain: +12)");
+    createHoloCard(-6, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 1", "Task T1 -> Diff p1 (Pre-Verif: +10)");
+    createHoloCard(0, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 2", "Task T2 -> Diff p2 (Pre-Verif: +8)");
+    createHoloCard(6, 4.5, 0, 5, 2, 0.8, colors.purple, "Worker Agent 3", "Task T3 -> Diff p3 (Pre-Verif: +12)");
 
-    // LAYER 3: Tree-Sitter AST Conflict Extractor (Y = +0.5)
-    createHoloCard(0, 0.5, 0, 15, 2.2, 0.8, colors.amber, "LAYER 3: TREE-SITTER AST PARSER", "Extracts Symbol Touch Sets: Functions, Classes, Scopes");
+    // LAYER 3: Two-Tier AST & Def-Use Conflict Extractor (Y = +0.5)
+    createHoloCard(0, 0.5, 0, 16, 2.2, 0.8, colors.amber, "LAYER 3: TWO-TIER AST & DEF-USE EXTRACTOR", "Tier 1 Syntactic Scopes + Tier 2 Semantic Cross-File Def-Use Call Graph");
 
     // LAYER 4: NetworkX Conflict Graph & Conflict Laser (Y = -3.5)
-    createHoloCard(-5, -3.5, 0, 4.8, 2, 0.8, colors.emerald, "Patch Node p1", "AST: math_utils.ratio");
-    createHoloCard(0, -3.5, 0, 4.8, 2, 0.8, colors.rose, "Patch Node p2", "AST: math_utils.ratio");
-    createHoloCard(5, -3.5, 0, 4.8, 2, 0.8, colors.emerald, "Patch Node p3", "AST: formatters.iso");
+    createHoloCard(-5, -3.5, 0, 4.8, 2, 0.8, colors.emerald, "Patch Node p1", "Def: math_utils.ratio");
+    createHoloCard(0, -3.5, 0, 4.8, 2, 0.8, colors.rose, "Patch Node p2", "Call: math_utils.ratio");
+    createHoloCard(5, -3.5, 0, 4.8, 2, 0.8, colors.emerald, "Patch Node p3", "Independent: fmt.iso");
 
-    // Fiery Red Conflict Beam between p1 and p2
+    // Fiery Red Conflict Beam between p1 and p2 (Tier 2 Semantic Def-Use Collision)
     const beamGeom = new THREE.CylinderGeometry(0.08, 0.08, 5, 16);
     const beamMat = new THREE.MeshBasicMaterial({ color: colors.rose, wireframe: true });
     conflictBeam = new THREE.Mesh(beamGeom, beamMat);
@@ -442,9 +442,9 @@
     // LAYER 5: Discrete MWIS Optimizer (Y = -7.5)
     createHoloCard(0, -7.5, 0, 16, 2.4, 0.8, colors.cyan, "LAYER 5: DISCRETE MWIS OPTIMIZER", "Selects Certified I* = {p1, p3} | Defers p2 | Bound 1/chi_f(G)");
 
-    // LAYER 6: Docker Sandbox & Rebase Convergence (Y = -11.5)
-    createHoloCard(-4.5, -11.5, 0, 7.5, 2.2, 0.8, colors.emerald, "Docker Sandbox (Pytest)", "18/18 Green -> Commit s_1");
-    createHoloCard(4.5, -11.5, 0, 7.5, 2.2, 0.8, colors.purple, "Rebase Engine (Cycle 2)", "Rebase Staged p2 onto s_1");
+    // LAYER 6: Sandbox Commit & Adaptive Re-Prompting (Y = -11.5)
+    createHoloCard(-4.5, -11.5, 0, 7.5, 2.2, 0.8, colors.emerald, "Sandbox Test & Commit", "Atomic Baseline: s_0 -> s_1");
+    createHoloCard(4.5, -11.5, 0, 7.5, 2.2, 0.8, colors.purple, "Adaptive Re-Prompting", "Re-prompt W2 with Collision Context");
   }
 
   // Animated Glowing Particle Streams Connecting Layers

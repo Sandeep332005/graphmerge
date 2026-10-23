@@ -426,11 +426,11 @@
       document.getElementById('metric-status').textContent = "Sandbox Verified";
       currentStep = 5;
     } else if (currentStep === 5) {
-      // Step 6: Commit & Rebase Loop
+      // Step 6: Atomic Commit & Adaptive Re-Prompting Loop
       setActiveStage(6);
       addLog("Git Commit: Patches {p1, p3} committed to baseline state s_1.", "success");
-      addLog("Rebase Engine: Re-basing conflicted patch p2 onto newly committed state s_1...", "warn");
-      addLog("Rebase successful! Patch p2 staged for Cycle 2 execution.", "success");
+      addLog("Adaptive Re-Prompting: Building collision context from committed I* patches...", "warn");
+      addLog("Worker Agent 2 re-prompted with baseline s_1 diff context. Cleanly adapts patch for Cycle 2!", "success");
       addLog("Cycle 1 complete. Convergence gap closing geometrically.", "success");
       document.getElementById('metric-status').textContent = "Cycle 1 Committed (s_1)";
       document.getElementById('btn-next').disabled = true;

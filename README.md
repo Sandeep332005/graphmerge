@@ -31,7 +31,7 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Hardened System Architecture
 
 ```
                        [ Input Task Backlog: T1, T2, T3 ]
@@ -44,14 +44,19 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
         [ Worker Agent 1 ]     [ Worker Agent 2 ]     [ Worker Agent 3 ]
          (Diff Patch p1)        (Diff Patch p2)        (Diff Patch p3)
                 │                      │                      │
+                ▼                      ▼                      ▼
+        [ Worker Local Pre-Verification Node (Delta f_i > 0, AST Syntax Checks) ]
+                │                      │                      │
                 └──────────────────────┼──────────────────────┘
                                        │
                                        ▼
-                    [ Tree-Sitter AST Conflict Extractor ]
-                    (Functions, Classes, Scopes, Imports)
+             [ Two-Tier AST & Def-Use Conflict Extractor ]
+               • Tier 1: Syntactic AST Definitions & Overlapping Lines
+               • Tier 2: Semantic Def-Use Call Graph & Cross-File Imports
                                        │
                                        ▼
                     [ NetworkX Conflict Graph G = (V, E) ]
+                     (Linear Inverted Symbol Index: O(K*S))
                                        │
                                        ▼
                  [ Maximum Weight Independent Set (MWIS) Solver ]
@@ -63,14 +68,15 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
               (e.g., {p1, p3})                         (e.g., {p2})
                       │                                 │
                       ▼                                 │
-         [ Docker Sandbox Test Runner ]                 │
-               (Pytest Execution)                       │
+         [ Sandbox Test Runner & Baseline Commit ]      │
+               (Atomic Baseline Update: s_0 -> s_1)     │
                       │                                 │
-                      ▼                                 │
-         [ Commit I* -> New Baseline s_1 ] ◄────────────┘
-                      │                 (Rebase onto s_1)
-                      ▼
-         [ Convergence Check: Remaining Tasks? ] ──► (Cycle 2)
+                      ▼                                 ▼
+         [ Convergence Check ]           [ Adaptive Agent Re-Prompting Node ]
+            (Remaining Tasks?)           (Collision Context + s_1 + I* Diffs)
+                      │                                 │
+                      └─────────────◄───────────────────┘
+                                  (Cycle 2 Execution)
 ```
 
 ---

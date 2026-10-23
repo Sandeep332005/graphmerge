@@ -253,27 +253,30 @@ GraphMerge introduces an agent coordination architecture based on three tenets:
 flowchart TD
     subgraph UserInterface ["1. Input and Dispatch Layer"]
         CLI["CLI / Task Dispatcher"]
-        Repo["Target Codebase Repository"]
+        Repo["Target Codebase Repository Baseline s_0"]
     end
 
-    subgraph LangGraphEngine ["2. LangGraph Orchestration Engine"]
+    subgraph LangGraphEngine ["2. LangGraph Hardened Orchestration Engine"]
         Supervisor["Supervisor Node"]
         W1["Worker Agent 1"]
         W2["Worker Agent 2"]
         W3["Worker Agent 3"]
+        PreVerif["Worker Local Pre-Verification Node (Delta f_i > 0)"]
+        AdaptiveReprompt["Adaptive Agent Re-Prompting Node (Collision Context)"]
         State["GraphMerge State Management"]
     end
 
-    subgraph ConflictEngine ["3. Conflict and Optimization Layer"]
-        AST["Tree-Sitter AST Extractor"]
-        GraphBuilder["Conflict Graph Builder G=(V,E)"]
-        Optimizer["NetworkX MWIS Solver"]
+    subgraph ConflictEngine ["3. Two-Tier Conflict and Optimization Layer"]
+        AST["Two-Tier AST & Def-Use Extractor (Tier 1 Syntactic + Tier 2 Semantic)"]
+        GraphBuilder["Linear Inverted Index Graph Builder G=(V,E)"]
+        Optimizer["Divide-and-Conquer MWIS Solver"]
     end
 
     subgraph SandboxLayer ["4. Sandboxing and Verification Layer"]
         DockerMgr["Docker Container Manager"]
         PatchApp["Patch Application Engine"]
         TestRunner["Pytest Test Harness"]
+        AtomicCommit["Atomic Baseline Commit (s_0 -> s_1)"]
     end
 
     subgraph StorageLayer ["5. Persistence and Artifact Layer"]
@@ -286,17 +289,22 @@ flowchart TD
     Supervisor -->|Fan-Out Task 1| W1
     Supervisor -->|Fan-Out Task 2| W2
     Supervisor -->|Fan-Out Task 3| W3
-    W1 -->|Unified Diff 1| State
-    W2 -->|Unified Diff 2| State
-    W3 -->|Unified Diff 3| State
+    W1 --> PreVerif
+    W2 --> PreVerif
+    W3 --> PreVerif
+    PreVerif -->|Verified Proposals Delta f_i > 0| State
     State --> AST
     AST --> GraphBuilder
     GraphBuilder --> Optimizer
-    Optimizer -->|Independent Set I*| PatchApp
+    Optimizer -->|Certified Independent Set I*| PatchApp
+    Optimizer -->|Deferred Conflicted Patches| AdaptiveReprompt
     PatchApp --> DockerMgr
     DockerMgr --> TestRunner
-    TestRunner -->|Pass/Fail Evidence| State
-    State -->|Update Base / Rebase| GitRepo
+    TestRunner -->|Pass/Fail Evidence| AtomicCommit
+    AtomicCommit -->|New Baseline s_1| State
+    State -->|Update Baseline| AdaptiveReprompt
+    AdaptiveReprompt -->|Re-Prompt with Collision Context & s_1 Diffs| W2
+    AtomicCommit --> GitRepo
     State --> Logs
 ```
 
@@ -308,15 +316,26 @@ flowchart TD
 * **Outputs:** State updates, accepted patch lists, termination signals.
 * **Communication:** Dispatches tasks to workers via LangGraph `Send` API; triggers downstream optimization nodes.
 
-#### 2. Worker Agents (`graphmerge.agents.coder`)
-* **Purpose:** Explores the repository, analyzes a single assigned issue/task, and generates a candidate unified diff.
-* **Inputs:** Sub-task specification, read-only view of target repository.
-* **Outputs:** `AgentProposal` object containing the unified diff, modified file paths, and self-reported local gain.
+#### 2. Worker Local Pre-Verification Node (`worker_preverification_node`)
+* **Purpose:** Validates each candidate patch locally ($s_t \oplus p_i$) before the coordinator admits it into the conflict graph.
+* **Validation Rules:**
+  1. *AST Syntax Validation:* Verifies whether the patch or diff hunks parse without syntax errors using `validate_diff_syntax`.
+  2. *Empirical Gain Check:* Mandates empirical gain $\Delta f_i > 0$. Unverified or regressive patches ($\Delta f_i \le 0$) are moved to `rejected_unverified_patches` to prevent corrupting baseline $s_{t+1}$.
 
-#### 3. AST Dependency Extractor (`graphmerge.analysis.ast_parser`)
-* **Purpose:** Inspects each proposal against the baseline codebase AST to identify exactly which symbol nodes (classes, functions, method signatures, variable bindings) are modified, referenced, or deleted.
-* **Inputs:** Raw diff strings, target repository source files.
-* **Outputs:** Structured `TouchSet` containing fully qualified symbol identifiers (e.g., `pkg.module.Class.method`).
+#### 3. Two-Tier AST & Def-Use Conflict Extractor (`graphmerge.analysis.ast_parser`)
+* **Purpose:** Inspects each proposal against the baseline codebase AST to identify syntactic definition collisions and cross-file semantic call collisions.
+* **Conflict Tiers:**
+  * **Tier 1 (Syntactic Scope Collisions):** Multiple proposals modify the same function, class, or method body in the same module.
+  * **Tier 2 (Semantic Def-Use Collisions):** Proposal $A$ modifies the definition of symbol $S$ in file $F_1$, and Proposal $B$ invokes or imports symbol $S$ in file $F_2$.
+* **Outputs:** Structured `SymbolAnalysis` (definitions, calls, imports) and typed conflict edges.
+
+#### 4. Adaptive Agent Re-Prompting Node (`adaptive_reprompt_node`)
+* **Purpose:** Replaces naive/blind `git rebase` or `git apply` with a context-rich LLM agent re-prompt loop.
+* **Mechanism:**
+  * When Proposal $p_j$ is deferred due to conflict edges with accepted set $I^*$:
+  * Constructs a **Collision Diagnostic Context** containing the colliding proposal IDs, exact colliding symbols, and the diff contents of the accepted $I^*$ patches.
+  * Re-prompts the worker agent: *"Your patch for task $T_j$ conflicted with patches committed into baseline $s_{t+1}$. The target symbols have been updated. Regenerate your patch grounded in $s_{t+1}$."*
+  * Worker produces an adapted patch $p_j'$ ready for clean integration in the next iteration.
 
 #### 4. Conflict Graph Builder (`graphmerge.optimization.graph_builder`)
 * **Purpose:** Constructs the undirected interaction graph $G = (V, E)$.
