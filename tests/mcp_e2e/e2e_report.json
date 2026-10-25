@@ -7,7 +7,7 @@
   {
     "worker": "W2_happy_path",
     "status": "PASS",
-    "evidence": "Arbitration success: accepted=['p1', 'p2']"
+    "evidence": "Arbitration success: accepted=['p2', 'p1']"
   },
   {
     "worker": "W3_bad_input",
