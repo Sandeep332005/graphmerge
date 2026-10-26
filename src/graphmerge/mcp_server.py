@@ -24,11 +24,10 @@ except ImportError:
         mcp = None
 
 
-optimizer = ConflictGraphOptimizer()
-
 
 def arbitrate_merge_proposals(proposals_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Core function to arbitrate multiple candidate agent proposals (pre-extracted symbols)."""
+    optimizer = ConflictGraphOptimizer()
     g = optimizer.build_conflict_graph(proposals_data)
     accepted, rejected = optimizer.solve_mwis()
     bound = optimizer.compute_fractional_bound()
@@ -91,6 +90,7 @@ def arbitrate_diff_patches_core(diff_patches: List[Dict[str, Any]]) -> Dict[str,
             "diff_content": diff_text,
         })
 
+    optimizer = ConflictGraphOptimizer()
     g = optimizer.build_conflict_graph(proposals_payload)
     accepted, rejected = optimizer.solve_mwis()
     bound = optimizer.compute_fractional_bound()

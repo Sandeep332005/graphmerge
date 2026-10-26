@@ -1,13 +1,29 @@
 import re
 import ast
 import hashlib
+import bisect
+from collections import OrderedDict
 from typing import Set, List, Dict, Optional, Any, TypedDict
+
+
+class _BoundedCache(OrderedDict):
+    def __init__(self, maxsize=256):
+        super().__init__()
+        self.maxsize = maxsize
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self.maxsize:
+            self.popitem(last=False)
 
 
 class SymbolAnalysis(TypedDict, total=False):
     definitions: Set[str]  # Functions or classes defined / modified
     calls: Set[str]        # External or internal functions called in modified lines
     imports: Set[str]      # Modules or names imported
+
 
 try:
     import tree_sitter_python as tspython
@@ -20,27 +36,41 @@ except ImportError:
     _parser = None
 
 # Cache parsed trees by sha256 to eliminate redundant tree-sitter parses
-_AST_CACHE: Dict[str, Any] = {}
+_AST_CACHE: _BoundedCache = _BoundedCache(256)
 
 
 def extract_modified_lines(diff_text: str) -> Dict[str, List[int]]:
-    """Parses a unified diff string to extract modified line numbers per file.
+    """Parses a unified diff string to extract *added* line numbers per file.
+
+    Only lines introduced by the patch (``+``) are recorded. Context lines
+    advance the new-file line counter but are not treated as modifications,
+    so unchanged code is never reported as a collision site.
 
     Complexity: O(L) single-pass scan of diff lines.
     """
     files_modified: Dict[str, List[int]] = {}
     current_file = None
+    new_line = 0
 
     for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
             current_file = line[6:].strip()
-            files_modified[current_file] = []
+            files_modified.setdefault(current_file, [])
+            new_line = 0
         elif line.startswith("@@ ") and current_file:
             match = re.search(r"\+(\d+)(?:,(\d+))?", line)
             if match:
-                start_line = int(match.group(1))
-                count = int(match.group(2)) if match.group(2) else 1
-                files_modified[current_file].extend(range(start_line, start_line + count))
+                new_line = int(match.group(1))
+        elif current_file and new_line:
+            if line.startswith("+"):
+                files_modified[current_file].append(new_line)
+                new_line += 1
+            elif line.startswith("-") or line.startswith("\\"):
+                # Removed lines and diff metadata do not exist in the new file.
+                continue
+            else:
+                # Context line: present in the new file, but not a modification.
+                new_line += 1
 
     return files_modified
 
@@ -71,13 +101,18 @@ def extract_symbol_analysis(file_content: bytes, modified_lines: List[int]) -> S
     imports: Set[str] = set()
     mod_set = set(modified_lines)
 
-    def traverse(node):
+    # Convert sorted list to list for bisect
+    sorted_mod_lines = sorted(mod_set)
+
+    def range_intersects(start, end):
+        i = bisect.bisect_left(sorted_mod_lines, start)
+        return i < len(sorted_mod_lines) and sorted_mod_lines[i] <= end
+
+    def traverse_optimized(node):
         node_start = node.start_point[0] + 1
         node_end = node.end_point[0] + 1
 
-        # Check if node line range intersects modified lines
-        touches_diff = any(node_start <= line <= node_end for line in mod_set)
-        if not touches_diff:
+        if not range_intersects(node_start, node_end):
             return
 
         # 1. Definitions (Functions, Methods, Classes)
@@ -110,9 +145,9 @@ def extract_symbol_analysis(file_content: bytes, modified_lines: List[int]) -> S
                         imports.add(child.text.decode("utf-8", errors="ignore"))
 
         for child in node.children:
-            traverse(child)
+            traverse_optimized(child)
 
-    traverse(tree.root_node)
+    traverse_optimized(tree.root_node)
     return {
         "definitions": definitions,
         "calls": calls,
@@ -133,8 +168,15 @@ def _python_ast_fallback_analysis(file_content: bytes, modified_lines: List[int]
     imports: Set[str] = set()
     mod_set = set(modified_lines)
 
+    source_lines = file_content.decode("utf-8", errors="ignore").splitlines()
+    sorted_mod_lines = sorted(mod_set)
+
+    def range_intersects(start, end):
+        i = bisect.bisect_left(sorted_mod_lines, start)
+        return i < len(sorted_mod_lines) and sorted_mod_lines[i] <= end
+
     try:
-        source_code = file_content.decode("utf-8", errors="ignore")
+        source_code = "\n".join(source_lines)
         tree = ast.parse(source_code)
     except Exception:
         # Regex emergency fallback
@@ -147,9 +189,7 @@ def _python_ast_fallback_analysis(file_content: bytes, modified_lines: List[int]
     for node in ast.walk(tree):
         if hasattr(node, "lineno"):
             end_lineno = getattr(node, "end_lineno", node.lineno)
-            touches_diff = any(node.lineno <= line <= end_lineno for line in mod_set)
-
-            if touches_diff:
+            if range_intersects(node.lineno, end_lineno):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                     definitions.add(node.name)
 
@@ -211,10 +251,9 @@ def validate_diff_syntax(diff_text: str) -> bool:
         line.startswith("+") and not line.startswith("+++") for line in lines
     )
 
-    import textwrap
-
     if not is_diff:
         # Raw Python code snippet
+        import textwrap
         try:
             ast.parse(diff_text)
             return True
@@ -233,27 +272,47 @@ def validate_diff_syntax(diff_text: str) -> bool:
             return False
 
     # Extract lines starting with '+' (excluding '+++')
-    added_lines = [line[1:] for line in lines if line.startswith("+") and not line.startswith("+++")]
-    if not added_lines:
+    # Group added lines by file to ensure per-file syntax validation
+    file_map = {}
+    current_file = None
+    for line in lines:
+        if line.startswith("+++ b/"):
+            current_file = line[6:].strip()
+            file_map[current_file] = []
+        elif line.startswith("+") and not line.startswith("+++") and current_file:
+            file_map[current_file].append(line[1:])
+
+    if not file_map:
         return True
 
-    snippet = "\n".join(added_lines)
-    try:
-        ast.parse(snippet)
-        return True
-    except SyntaxError:
+    import textwrap
+
+    def validate_snippet(snippet: str) -> bool:
+        if not snippet.strip():
+            return True
         try:
-            ast.parse(textwrap.dedent(snippet))
+            ast.parse(snippet)
             return True
         except SyntaxError:
             try:
-                wrapped = "def _dummy():\n" + textwrap.indent(textwrap.dedent(snippet), "    ")
-                ast.parse(wrapped)
+                ast.parse(textwrap.dedent(snippet))
                 return True
             except SyntaxError:
-                return False
-    except Exception:
-        return False
+                try:
+                    wrapped = "def _dummy():\n" + textwrap.indent(textwrap.dedent(snippet), "    ")
+                    ast.parse(wrapped)
+                    return True
+                except SyntaxError:
+                    return False
+        except Exception:
+            return False
+
+    for file_lines in file_map.values():
+        if not file_lines:
+            continue
+        if not validate_snippet("\n".join(file_lines)):
+            return False
+    return True
 
 
 def extract_hunk_code(diff_text: str) -> str:
@@ -263,6 +322,9 @@ def extract_hunk_code(diff_text: str) -> str:
     lines = []
     for line in diff_text.splitlines():
         if line.startswith(("diff --git", "--- ", "+++ ", "@@", "index ")):
+            continue
+        # Diff metadata such as "\ No newline at end of file" is not code.
+        if line.startswith("\\"):
             continue
         if line.startswith("-"):
             continue

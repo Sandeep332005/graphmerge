@@ -12,8 +12,8 @@ def test_extract_modified_lines():
 """
     modified = extract_modified_lines(sample_diff)
     assert "math_utils.py" in modified
-    assert len(modified["math_utils.py"]) > 0
-    assert 10 in modified["math_utils.py"]
+    # Only the two added lines count; the context lines at 10 and 13 do not.
+    assert modified["math_utils.py"] == [11, 12]
 
 def test_extract_symbols_from_source():
     source_code = b"""
