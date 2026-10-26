@@ -7,6 +7,7 @@ logging raw requests/responses to tests/mcp_e2e/logs/<worker>.log.
 
 import asyncio
 import os
+import sys
 import json
 import tempfile
 import shutil
@@ -19,12 +20,10 @@ from mcp.client.stdio import stdio_client
 from graphmerge.optimization.solver import ConflictGraphOptimizer
 from graphmerge.analysis.ast_parser import extract_modified_lines, extract_hunk_code, extract_symbol_analysis
 
-LOG_DIR = "/Users/braj/graphmerge/tests/mcp_e2e/logs"
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
-PYTHON_PATH = "/Users/braj/graphmerge/venv/bin/python3"
-if not os.path.exists(PYTHON_PATH):
-    PYTHON_PATH = "python3"
+PYTHON_PATH = sys.executable or "python3"
 
 def get_server_params(cwd: str) -> StdioServerParameters:
     return StdioServerParameters(
@@ -379,10 +378,13 @@ async def main():
                     print(f"  -> Confirmed FAIL: {solo_res['evidence']}")
 
     # Save JSON summary report
-    report_path = "/Users/braj/graphmerge/tests/mcp_e2e/e2e_report.json"
+    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "e2e_report.json")
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
     print(f"\nFull report saved to {report_path}")
+
+    if not all_passed:
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

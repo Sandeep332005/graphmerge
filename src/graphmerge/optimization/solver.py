@@ -30,10 +30,18 @@ class ConflictGraphOptimizer:
         if not proposals:
             return self.graph
 
+        seen_ids = set()
         # Add all proposal nodes
         for p in proposals:
+            pid = p["id"]
+            if pid in seen_ids:
+                raise ValueError(
+                    f"Duplicate proposal id '{pid}'. "
+                    "Each proposal must have a unique id."
+                )
+            seen_ids.add(pid)
             self.graph.add_node(
-                p["id"],
+                pid,
                 weight=float(p.get("weight", 1.0)),
                 files=p.get("files", {}),
                 symbol_analysis=p.get("symbol_analysis", {})
@@ -81,14 +89,13 @@ class ConflictGraphOptimizer:
                 for i in range(len(touching_ids)):
                     for j in range(i + 1, len(touching_ids)):
                         u, v = touching_ids[i], touching_ids[j]
-                        if not self.graph.has_edge(u, v):
-                            self.graph.add_edge(
-                                u, v,
-                                conflict_type="TIER1_SYNTACTIC_COLLISION",
-                                tier=1,
-                                file=file_path,
-                                symbol=symbol
-                            )
+                        self._record_conflict(
+                            u, v,
+                            conflict_type="TIER1_SYNTACTIC_COLLISION",
+                            tier=1,
+                            file=file_path,
+                            symbol=symbol,
+                        )
 
         # --- Generate Tier 2 Edges (Semantic Def-Use Call Graph Collisions) ---
         for symbol, producers in tier2_producers.items():
@@ -97,19 +104,50 @@ class ConflictGraphOptimizer:
                 for (p_prod, f_prod) in producers:
                     for (p_cons, f_cons) in consumers:
                         if p_prod != p_cons:
-                            if not self.graph.has_edge(p_prod, p_cons):
-                                self.graph.add_edge(
-                                    p_prod, p_cons,
-                                    conflict_type="TIER2_DEF_USE_COLLISION",
-                                    tier=2,
-                                    producer=p_prod,
-                                    consumer=p_cons,
-                                    producer_file=f_prod,
-                                    consumer_file=f_cons,
-                                    symbol=symbol
-                                )
+                            self._record_conflict(
+                                p_prod, p_cons,
+                                conflict_type="TIER2_DEF_USE_COLLISION",
+                                tier=2,
+                                producer=p_prod,
+                                consumer=p_cons,
+                                producer_file=f_prod,
+                                consumer_file=f_cons,
+                                symbol=symbol,
+                            )
 
         return self.graph
+
+    def _record_conflict(self, u: str, v: str, **attrs: Any) -> None:
+        """Adds a conflict edge, preserving every tier that applies to the pair.
+
+        A pair can collide syntactically (Tier 1) and through the def-use graph
+        (Tier 2). Dropping the second edge would hide one of the causes, so an
+        existing edge is upgraded to ``TIER1_AND_TIER2_COLLISION`` and both
+        symbols are retained.
+        """
+        if not self.graph.has_edge(u, v):
+            self.graph.add_edge(u, v, **attrs)
+            return
+
+        data = self.graph.edges[u, v]
+        incoming_tier = attrs.get("tier")
+        if data.get("tier") != incoming_tier:
+            data["tier"] = "1+2"
+            data["conflict_type"] = "TIER1_AND_TIER2_COLLISION"
+
+        for key in ("symbol", "file", "producer", "consumer",
+                    "producer_file", "consumer_file"):
+            incoming = attrs.get(key)
+            if incoming is None:
+                continue
+            current = data.get(key)
+            if current is None:
+                data[key] = incoming
+            elif current != incoming:
+                merged = current if isinstance(current, list) else [current]
+                if incoming not in merged:
+                    merged.append(incoming)
+                data[key] = merged
 
     def solve_mwis(self) -> Tuple[Set[str], Set[str]]:
         """Solves Maximum Weight Independent Set using Divide-and-Conquer over
@@ -133,9 +171,11 @@ class ConflictGraphOptimizer:
                 total_accepted.add(list(component_nodes)[0])
                 continue
 
-            # If small component (<= 25 nodes), solve exact complement clique
+            # If small component (<= 25 nodes), solve exact complement clique.
+            # Copy first: networkx forbids complementing a frozen subgraph view,
+            # and the copy keeps the component isolated from the parent graph.
             if len(component_nodes) <= 25:
-                comp_g = nx.complement(subgraph)
+                comp_g = nx.complement(subgraph.copy())
                 cliques = list(nx.find_cliques(comp_g))
                 best_sub_is = max(
                     cliques,

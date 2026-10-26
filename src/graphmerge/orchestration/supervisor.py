@@ -9,8 +9,6 @@ from graphmerge.orchestration.state import (
 from graphmerge.optimization.solver import ConflictGraphOptimizer
 from graphmerge.analysis.ast_parser import validate_source_syntax, validate_diff_syntax
 
-optimizer = ConflictGraphOptimizer()
-
 
 def worker_fanout_node(state: GraphMergeState) -> Dict[str, Any]:
     """Coordinates task fan-out and proposal intake.
@@ -106,6 +104,7 @@ def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
             item["symbol_analysis"] = p["symbol_analysis"]
         opt_payload.append(item)
 
+    optimizer = ConflictGraphOptimizer()
     optimizer.build_conflict_graph(opt_payload)
     accepted_ids, rejected_ids = optimizer.solve_mwis()
     diagnostics = optimizer.get_conflict_diagnostics()
