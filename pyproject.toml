@@ -8,6 +8,17 @@ version = "0.1.0"
 description = "Parallel AI Agent Collaboration via Graph-Structured Distributed Block Optimization (arXiv:2610.30074)"
 readme = "README.md"
 license = { text = "Apache-2.0" }
+keywords = [
+    "mcp-server",
+    "ai-agents",
+    "ast-analysis",
+    "mwis",
+    "multi-agent",
+    "code-merging",
+    "tree-sitter",
+    "claude-code",
+    "langgraph",
+]
 authors = [
     { name = "GraphMerge Contributors" }
 ]
