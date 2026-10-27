@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 from typing import Any
 
 log = logging.getLogger("graphmerge")
@@ -54,7 +55,7 @@ class GitSandbox:
             }
 
         self._worktree_path = tempfile.mkdtemp(prefix="graphmerge_sandbox_")
-        self._branch_name = f"graphmerge-sandbox-{os.getpid()}"
+        self._branch_name = f"graphmerge-sandbox-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
         try:
             self._create_worktree(baseline)
