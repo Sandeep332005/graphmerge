@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -13,6 +14,8 @@ from graphmerge.orchestration.state import (
     GraphMergeState,
     LocalVerification,
 )
+
+log = logging.getLogger("graphmerge")
 
 
 def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
@@ -32,10 +35,14 @@ def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
     if backlog:
         worker_cfg = state.get("worker_config")
         if worker_cfg and "worker" in worker_cfg:
-            pool = WorkerPool(worker_cfg["worker"])
+            worker = worker_cfg["worker"]
+            if not hasattr(worker, "generate_proposal"):
+                log.warning("worker_config['worker'] missing generate_proposal method")
+                return {"current_baseline": baseline, "proposals": []}
+            pool = WorkerPool(worker)
             generated = pool.dispatch(backlog, baseline)
             return {"current_baseline": baseline, "proposals": generated}
-        return {"current_baseline": baseline, "proposals": backlog}
+        return {"current_baseline": baseline, "proposals": []}
 
     return {"current_baseline": baseline, "proposals": []}
 

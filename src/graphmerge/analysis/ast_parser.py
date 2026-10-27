@@ -385,10 +385,11 @@ def _ts_symbol_analysis(
     file_content: bytes,
     modified_lines: list[int],
     cfg: dict,
-    language: str = "",
+    language: str = "python",
 ) -> SymbolAnalysis:
     """Generic tree-sitter analysis using per-language node config."""
     h = hashlib.sha256(file_content)
+    h.update(b"\x00")
     h.update(language.encode("utf-8"))
     cache_key = h.hexdigest()
     if cache_key in _AST_CACHE:
