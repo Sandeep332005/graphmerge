@@ -212,11 +212,19 @@ def sandbox_integration_node_real(state: dict[str, Any]) -> dict[str, Any]:
         result = sandbox.apply_patches(newly_accepted, baseline)
 
         commit_sha = result.get("commit_sha")
-        new_baseline = commit_sha or f"s_{new_iter}"
+        test_passed = result.get("test_passed", False)
 
-        for p in newly_accepted:
-            if p.get("id") in result.get("applied_ids", []):
-                accumulated_accepted.append(p)
+        if test_passed and commit_sha:
+            new_baseline = commit_sha
+            applied_set = set(result.get("applied_ids", []))
+            for p in newly_accepted:
+                if p.get("id") in applied_set:
+                    accumulated_accepted.append(p)
+                else:
+                    staged.append(p)
+        else:
+            staged.extend(newly_accepted)
+            new_baseline = f"s_{new_iter}"
     else:
         accumulated_accepted.extend(newly_accepted)
         new_baseline = f"s_{new_iter}"

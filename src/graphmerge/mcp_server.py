@@ -42,8 +42,8 @@ def arbitrate_merge_proposals(
 
     return {
         "status": "success",
-        "accepted_proposals": list(accepted),
-        "deferred_proposals": list(rejected),
+        "accepted_proposals": sorted(accepted),
+        "deferred_proposals": sorted(rejected),
         "total_nodes": g.number_of_nodes(),
         "total_conflict_edges": g.number_of_edges(),
         "conflict_diagnostics": diagnostics,
@@ -187,8 +187,8 @@ if HAS_MCP and mcp:
                 "arbitrate_diff_patches: %d evaluated",
                 result["total_patches_evaluated"],
             )
-            return json.dumps(result, indent=2, default=_json_default)
-        except (json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
+            return json.dumps(result, indent=2, default=json_default)
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError, AttributeError) as e:
             log.warning("arbitrate_diff_patches error: %s", e)
             return json.dumps({"status": "error", "message": str(e)}, indent=2)
 
@@ -203,7 +203,7 @@ if HAS_MCP and mcp:
         try:
             result = check_patch_collision_core(diff_a, diff_b, id_a, id_b)
             return json.dumps(result, indent=2)
-        except (ValueError, TypeError, KeyError) as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log.warning("check_patch_collision error: %s", e)
             return json.dumps({"status": "error", "message": str(e)}, indent=2)
 
@@ -217,7 +217,7 @@ if HAS_MCP and mcp:
             result = arbitrate_merge_proposals(data)
             log.debug("solve_merge: %d nodes", result["total_nodes"])
             return json.dumps(result, indent=2)
-        except (json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError, AttributeError) as e:
             log.warning("solve_merge error: %s", e)
             return json.dumps({"status": "error", "message": str(e)}, indent=2)
 
@@ -249,7 +249,7 @@ if HAS_MCP and mcp:
         )
 
 
-def _json_default(obj):
+def json_default(obj):
     """JSON serializer for set objects in symbol analysis."""
     if isinstance(obj, set):
         return sorted(obj)

@@ -31,6 +31,21 @@ class _BoundedCache(OrderedDict):
         with self._lock:
             return super().__getitem__(key)
 
+    def get(self, key, default=None):
+        with self._lock:
+            try:
+                return super().__getitem__(key)
+            except KeyError:
+                return default
+
+    def __delitem__(self, key):
+        with self._lock:
+            super().__delitem__(key)
+
+    def __len__(self):
+        with self._lock:
+            return super().__len__()
+
 
 class SymbolAnalysis(TypedDict, total=False):
     definitions: set[str]
@@ -155,19 +170,20 @@ _LANG_NODE_CFG: dict[str, dict] = {
     },
 }
 
-# Lazily loaded parsers: lang_name -> (Parser, Language)
-_LANG_PARSERS: dict[str, tuple] = {}
-_parser_init_lock = threading.Lock()
+# Lazily loaded Language objects (immutable, safe to share across threads)
+_LANG_CACHE: dict[str, object | None] = {}
+_lang_init_lock = threading.Lock()
 
 
-def _get_parser(lang: str):
-    if lang in _LANG_PARSERS:
-        return _LANG_PARSERS[lang]
-    with _parser_init_lock:
-        if lang in _LANG_PARSERS:
-            return _LANG_PARSERS[lang]
+def _get_language(lang: str):
+    """Returns a cached tree-sitter Language object, or None."""
+    if lang in _LANG_CACHE:
+        return _LANG_CACHE[lang]
+    with _lang_init_lock:
+        if lang in _LANG_CACHE:
+            return _LANG_CACHE[lang]
         try:
-            from tree_sitter import Language, Parser
+            from tree_sitter import Language
 
             if lang == "python":
                 import tree_sitter_python as mod
@@ -198,29 +214,36 @@ def _get_parser(lang: str):
 
                 ts_lang = Language(mod.language())
             else:
-                _LANG_PARSERS[lang] = (None, None)
-                return None, None
+                _LANG_CACHE[lang] = None
+                return None
 
-            p = Parser(ts_lang)
-            _LANG_PARSERS[lang] = (p, ts_lang)
-            return p, ts_lang
+            _LANG_CACHE[lang] = ts_lang
+            return ts_lang
         except ImportError:
-            _LANG_PARSERS[lang] = (None, None)
-            return None, None
+            _LANG_CACHE[lang] = None
+            return None
 
 
-# Eagerly init Python parser for backward compat
+def _get_parser(lang: str):
+    """Returns (Parser, Language). Fresh Parser per call for thread safety."""
+    ts_lang = _get_language(lang)
+    if ts_lang is None:
+        return None, None
+    from tree_sitter import Parser
+
+    return Parser(ts_lang), ts_lang
+
+
+# Eagerly init Python language for backward compat
 try:
     import tree_sitter_python as tspython
-    from tree_sitter import Language, Parser
+    from tree_sitter import Language
 
     PY_LANGUAGE = Language(tspython.language())
-    _parser = Parser(PY_LANGUAGE)
     TREE_SITTER_AVAILABLE = True
-    _LANG_PARSERS["python"] = (_parser, PY_LANGUAGE)
+    _LANG_CACHE["python"] = PY_LANGUAGE
 except ImportError:
     TREE_SITTER_AVAILABLE = False
-    _parser = None
 
 _AST_CACHE: _BoundedCache = _BoundedCache(256)
 
@@ -370,10 +393,12 @@ def extract_symbol_analysis(
 
     # Fallback: Python ast module (only works for Python)
     if language == "python":
-        if TREE_SITTER_AVAILABLE and _parser is not None:
-            return _ts_symbol_analysis(
-                _parser, file_content, modified_lines, _LANG_NODE_CFG["python"], "python"
-            )
+        if TREE_SITTER_AVAILABLE:
+            py_parser, _ = _get_parser("python")
+            if py_parser is not None:
+                return _ts_symbol_analysis(
+                    py_parser, file_content, modified_lines, _LANG_NODE_CFG["python"], "python"
+                )
         return _python_ast_fallback_analysis(file_content, modified_lines)
 
     # Non-Python without tree-sitter: regex fallback
@@ -392,9 +417,8 @@ def _ts_symbol_analysis(
     h.update(b"\x00")
     h.update(language.encode("utf-8"))
     cache_key = h.hexdigest()
-    if cache_key in _AST_CACHE:
-        tree = _AST_CACHE[cache_key]
-    else:
+    tree = _AST_CACHE.get(cache_key)
+    if tree is None:
         tree = parser.parse(file_content)
         _AST_CACHE[cache_key] = tree
 
@@ -597,28 +621,82 @@ def validate_diff_syntax(diff_text: str) -> bool:
     For Python files, uses ast.parse. For other languages, uses
     tree-sitter parse (error node detection). Falls back to True
     for unknown languages (permissive — let the conflict graph decide).
+
+    Multi-file diffs are validated per-file with the correct language.
     """
     if not diff_text or not diff_text.strip():
         return True
 
     lines = diff_text.splitlines()
 
-    # Detect language from first file path in diff
-    lang = "python"
-    for line in lines:
-        if line.startswith("+++ b/"):
-            lang = detect_language(line[6:].strip())
-            break
-
     is_diff = any(diff_text.startswith(p) for p in ("diff --git", "--- ", "+++ ", "@@ ")) or any(
         line.startswith("+") and not line.startswith("+++") for line in lines
     )
 
-    if lang == "python":
-        return _validate_python_syntax(diff_text, lines, is_diff)
+    if not is_diff:
+        lang = "python"
+        for line in lines:
+            if line.startswith("+++ b/"):
+                lang = detect_language(line[6:].strip())
+                break
+        if lang == "python":
+            return _validate_python_syntax(diff_text, lines, False)
+        return _validate_ts_syntax(diff_text, lines, False, lang)
 
-    # Non-Python: use tree-sitter error node detection
-    return _validate_ts_syntax(diff_text, lines, is_diff, lang)
+    # Diff mode: validate per-file with language-specific validation
+    file_map: dict[str, list[str]] = {}
+    current_file: str | None = None
+    for line in lines:
+        if line.startswith("+++ b/"):
+            current_file = line[6:].strip()
+            file_map.setdefault(current_file, [])
+        elif line.startswith("+") and not line.startswith("+++") and current_file:
+            file_map[current_file].append(line[1:])
+
+    if not file_map:
+        return True
+
+    for file_path, added_lines in file_map.items():
+        if not added_lines:
+            continue
+        snippet = "\n".join(added_lines)
+        if not snippet.strip():
+            continue
+        lang = detect_language(file_path)
+        if lang == "python":
+            if not _validate_python_snippet(snippet):
+                return False
+        else:
+            parser, _ = _get_parser(lang)
+            if parser is None:
+                continue
+            tree = parser.parse(snippet.encode("utf-8", errors="ignore"))
+            if _tree_has_error(tree.root_node):
+                return False
+
+    return True
+
+
+def _validate_python_snippet(snippet: str) -> bool:
+    """Validates a single Python code snippet (added lines)."""
+    if not snippet.strip():
+        return True
+    try:
+        ast.parse(snippet)
+        return True
+    except SyntaxError:
+        try:
+            ast.parse(textwrap.dedent(snippet))
+            return True
+        except SyntaxError:
+            try:
+                wrapped = "def _dummy():\n" + textwrap.indent(textwrap.dedent(snippet), "    ")
+                ast.parse(wrapped)
+                return True
+            except SyntaxError:
+                return False
+    except Exception:
+        return False
 
 
 def _validate_python_syntax(diff_text: str, lines: list[str], is_diff: bool) -> bool:

@@ -214,14 +214,8 @@ def adaptive_reprompt_node(state: GraphMergeState) -> dict[str, Any]:
     return {"proposals": adapted_proposals}
 
 
-def build_graphmerge_state_graph(
-    checkpoint_dir: str | None = None,
-):
-    """Builds the full LangGraph state machine.
-
-    Args:
-        checkpoint_dir: If set, enables state checkpointing to this dir.
-    """
+def build_graphmerge_state_graph():
+    """Builds the full LangGraph state machine."""
     builder = StateGraph(GraphMergeState)
 
     builder.add_node("fanout", worker_fanout_node)
@@ -270,7 +264,7 @@ def run_pipeline(
         if existing and not existing.get("is_converged", False):
             state = existing
 
-    graph = build_graphmerge_state_graph(checkpoint_dir=checkpoint_dir)
+    graph = build_graphmerge_state_graph()
     final_state = graph.invoke(state)
 
     if store and run_id:

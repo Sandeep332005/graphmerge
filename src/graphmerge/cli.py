@@ -6,13 +6,8 @@ from graphmerge.mcp_server import (
     arbitrate_diff_patches_core,
     arbitrate_merge_proposals,
     check_patch_collision_core,
+    json_default,
 )
-
-
-def _json_default(obj):
-    if isinstance(obj, set):
-        return sorted(obj)
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
 def main():
@@ -61,7 +56,7 @@ def main():
             result = arbitrate_diff_patches_core(patches)
         else:
             result = arbitrate_merge_proposals(patches)
-        print(json.dumps(result, indent=2, default=_json_default))
+        print(json.dumps(result, indent=2, default=json_default))
 
     elif args.command == "check":
         with open(args.diff_a, encoding="utf-8") as f:
@@ -69,7 +64,7 @@ def main():
         with open(args.diff_b, encoding="utf-8") as f:
             diff_b = f.read()
         result = check_patch_collision_core(diff_a, diff_b)
-        print(json.dumps(result, indent=2, default=_json_default))
+        print(json.dumps(result, indent=2, default=json_default))
 
     elif args.command == "run":
         _run_pipeline(args)
@@ -124,7 +119,7 @@ def _run_pipeline(args):
         run_id=args.run_id,
         checkpoint_dir=args.checkpoint_dir,
     )
-    print(json.dumps(result, indent=2, default=_json_default))
+    print(json.dumps(result, indent=2, default=json_default))
 
 
 def _run_pipe(stream: bool = False):
@@ -153,7 +148,7 @@ def _run_pipe(stream: bool = False):
                 req = json.loads(line)
                 result = _dispatch_pipe(req)
                 print(
-                    json.dumps(result, default=_json_default),
+                    json.dumps(result, default=json_default),
                     flush=True,
                 )
             except json.JSONDecodeError as e:
@@ -166,7 +161,7 @@ def _run_pipe(stream: bool = False):
         try:
             req = json.loads(raw)
             result = _dispatch_pipe(req)
-            print(json.dumps(result, indent=2, default=_json_default))
+            print(json.dumps(result, indent=2, default=json_default))
         except json.JSONDecodeError as e:
             print(json.dumps({"status": "error", "message": str(e)}))
             sys.exit(1)
@@ -185,7 +180,7 @@ def _dispatch_pipe(req: dict) -> dict:
         )
     elif action == "solve":
         return arbitrate_merge_proposals(req["proposals"])
-    elif action == "arbitrate" or "patches" in req:
+    elif action == "arbitrate" or ("patches" in req):
         patches = req.get("patches", req.get("diffs", []))
         return arbitrate_diff_patches_core(patches)
     else:
