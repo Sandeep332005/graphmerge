@@ -35,26 +35,52 @@ classifiers = [
     "Topic :: Software Development :: Compilers",
 ]
 dependencies = [
-    "langgraph>=0.2.30",
-    "langchain-core>=0.3.0",
-    "networkx>=3.3",
-    "tree-sitter>=0.22.0",
-    "tree-sitter-python>=0.21.0",
-    "pydantic>=2.8.0",
-    "pulp>=2.8.0",
-    "mcp>=1.0.0",
-    "psutil>=5.9.0",
+    "langgraph>=0.2.30,<2",
+    "langchain-core>=0.3.0,<2",
+    "networkx>=3.3,<4",
+    "tree-sitter>=0.22.0,<1",
+    "tree-sitter-python>=0.21.0,<1",
+    "pydantic>=2.8.0,<3",
+    "pulp>=2.8.0,<5",
+    "mcp>=1.0.0,<3",
+    "psutil>=5.9.0,<7",
 ]
 
 [project.optional-dependencies]
+languages = [
+    "tree-sitter-javascript>=0.23.0,<1",
+    "tree-sitter-typescript>=0.23.0,<1",
+    "tree-sitter-go>=0.23.0,<1",
+    "tree-sitter-rust>=0.23.0,<1",
+    "tree-sitter-java>=0.23.0,<1",
+]
 dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.0",
     "docker>=7.1.0",
     "ruff>=0.5.0",
     "black>=24.4.0",
+    "tree-sitter-javascript>=0.23.0,<1",
+    "tree-sitter-typescript>=0.23.0,<1",
+    "tree-sitter-go>=0.23.0,<1",
+    "tree-sitter-rust>=0.23.0,<1",
+    "tree-sitter-java>=0.23.0,<1",
 ]
 
 [project.scripts]
 graphmerge = "graphmerge.cli:main"
 graphmerge-mcp = "graphmerge.mcp_server:main"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+
+[tool.black]
+target-version = ["py310"]
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"

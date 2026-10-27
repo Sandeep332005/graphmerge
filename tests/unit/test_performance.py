@@ -1,7 +1,7 @@
 import time
-import pytest
-from graphmerge.optimization.solver import ConflictGraphOptimizer
+
 from graphmerge.analysis.ast_parser import extract_symbols_from_source
+from graphmerge.optimization.solver import ConflictGraphOptimizer
 
 
 def test_stress_scale_mwis_performance():
@@ -20,11 +20,13 @@ def test_stress_scale_mwis_performance():
     for i in range(100):
         file_id = i // 10
         func_id = i % 5  # Forces pairs of proposals to collide on same func
-        proposals.append({
-            "id": f"patch_{i}",
-            "files": {f"module_{file_id}.py": {f"func_{func_id}"}},
-            "weight": 10.0 + (i % 7)
-        })
+        proposals.append(
+            {
+                "id": f"patch_{i}",
+                "files": {f"module_{file_id}.py": {f"func_{func_id}"}},
+                "weight": 10.0 + (i % 7),
+            }
+        )
 
     # Benchmark graph construction
     t0 = time.perf_counter()
@@ -49,7 +51,9 @@ def test_stress_scale_mwis_performance():
     for u in accepted:
         for v in accepted:
             if u != v:
-                assert not g.has_edge(u, v), f"Independence Invariant Violated! Conflict edge between {u} and {v}"
+                assert not g.has_edge(
+                    u, v
+                ), f"Independence Invariant Violated! Conflict edge between {u} and {v}"
 
 
 def test_ast_cache_speedup():

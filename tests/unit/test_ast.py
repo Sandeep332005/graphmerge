@@ -1,5 +1,5 @@
-import pytest
 from graphmerge.analysis.ast_parser import extract_modified_lines, extract_symbols_from_source
+
 
 def test_extract_modified_lines():
     sample_diff = """--- a/math_utils.py
@@ -14,6 +14,7 @@ def test_extract_modified_lines():
     assert "math_utils.py" in modified
     # Only the two added lines count; the context lines at 10 and 13 do not.
     assert modified["math_utils.py"] == [11, 12]
+
 
 def test_extract_symbols_from_source():
     source_code = b"""

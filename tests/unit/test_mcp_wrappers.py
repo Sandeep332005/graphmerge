@@ -1,6 +1,9 @@
 import json
+
 import pytest
-from graphmerge.mcp_server import mcp, HAS_MCP
+
+from graphmerge.mcp_server import HAS_MCP
+
 
 @pytest.mark.skipif(not HAS_MCP, reason="MCP library not installed")
 def test_mcp_tool_registration():
@@ -21,6 +24,7 @@ def test_mcp_tool_registration():
     assert hasattr(mcp_server, "check_patch_collision")
     assert hasattr(mcp_server, "solve_merge")
     assert hasattr(mcp_server, "generate_reprompt_instruction")
+
 
 def test_arbitrate_diff_patches_wrapper():
     from graphmerge.mcp_server import arbitrate_diff_patches
@@ -45,6 +49,7 @@ def test_arbitrate_diff_patches_wrapper():
     assert result["status"] == "error"
     assert "Expecting value" in result["message"]
 
+
 def test_arbitrate_diff_patches_with_syntax_error():
     from graphmerge.mcp_server import arbitrate_diff_patches
 
@@ -65,7 +70,7 @@ def test_arbitrate_diff_patches_with_syntax_error():
 
     input_data = [
         {"id": "p_valid", "diff": valid_diff, "weight": 10.0},
-        {"id": "p_broken", "diff": invalid_diff, "weight": 5.0}
+        {"id": "p_broken", "diff": invalid_diff, "weight": 5.0},
     ]
 
     result_str = arbitrate_diff_patches(json.dumps(input_data))
@@ -77,6 +82,7 @@ def test_arbitrate_diff_patches_with_syntax_error():
     assert result["syntax_rejected_patches"][0]["id"] == "p_broken"
     assert "syntax validation" in result["syntax_rejected_patches"][0]["reason"]
     assert result["preservation_bound"] >= 0.5
+
 
 def test_check_patch_collision_wrapper():
     from graphmerge.mcp_server import check_patch_collision
@@ -101,6 +107,7 @@ def test_check_patch_collision_wrapper():
     assert result["has_conflict"] is True
     assert result["symbol"] == "foo"
 
+
 def test_solve_merge_wrapper():
     from graphmerge.mcp_server import solve_merge
 
@@ -113,6 +120,7 @@ def test_solve_merge_wrapper():
     result = json.loads(result_str)
     assert result["status"] == "success"
     assert result["accepted_proposals"] == ["p1"]
+
 
 def test_generate_reprompt_instruction_wrapper():
     from graphmerge.mcp_server import generate_reprompt_instruction

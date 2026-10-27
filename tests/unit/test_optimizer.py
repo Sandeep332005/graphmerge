@@ -1,4 +1,3 @@
-import pytest
 from graphmerge.optimization.solver import ConflictGraphOptimizer
 
 
@@ -11,8 +10,16 @@ def test_mwis_conflict_arbitration():
 
     proposals = [
         {"id": "patch_1", "files": {"math_utils.py": {"calculate_ratio"}}, "weight": 10.0},
-        {"id": "patch_2", "files": {"math_utils.py": {"calculate_ratio"}}, "weight": 8.0},  # Collides with patch_1
-        {"id": "patch_3", "files": {"formatters.py": {"format_iso"}}, "weight": 12.0},      # Independent
+        {
+            "id": "patch_2",
+            "files": {"math_utils.py": {"calculate_ratio"}},
+            "weight": 8.0,
+        },  # Collides with patch_1
+        {
+            "id": "patch_3",
+            "files": {"formatters.py": {"format_iso"}},
+            "weight": 12.0,
+        },  # Independent
     ]
 
     optimizer.build_conflict_graph(proposals)

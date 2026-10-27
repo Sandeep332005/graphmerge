@@ -1,6 +1,5 @@
-import pytest
-from graphmerge.orchestration.supervisor import worker_preverification_node
 from graphmerge.orchestration.state import GraphMergeState
+from graphmerge.orchestration.supervisor import worker_preverification_node
 
 
 def test_worker_preverification_filtering():
@@ -47,7 +46,9 @@ def test_worker_preverification_filtering():
     assert "p_zero_gain" in rejected_ids
 
     # Check verification records
-    syntax_rej = next(p for p in result["rejected_unverified_patches"] if p["id"] == "p_syntax_error")
+    syntax_rej = next(
+        p for p in result["rejected_unverified_patches"] if p["id"] == "p_syntax_error"
+    )
     assert syntax_rej["verification"]["status"] == "FAILED"
     assert syntax_rej["verification"]["syntax_valid"] is False
 

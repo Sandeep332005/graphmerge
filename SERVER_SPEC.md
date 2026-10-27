@@ -1,10 +1,10 @@
 # SERVER_SPEC.md — GraphMerge MCP Server Specification
 
 ## 1. Server Entrypoint & Launch Configuration
-- **Entrypoint File:** `/Users/braj/graphmerge/src/graphmerge/mcp_server.py`
-- **Launch Command:** `python3 -m graphmerge.mcp_server`
-- **Virtual Environment Interpreter:** `/Users/braj/graphmerge/venv/bin/python3` (or global `python3` when installed in editable mode)
-- **Transport Mechanism:** Standard Input / Output (`stdio`) via the official Model Context Protocol (MCP) Python SDK (`mcp.server.fastmcp.FastMCP` or `mcp.server.mcpserver.MCPServer`).
+- **Entrypoint File:** `src/graphmerge/mcp_server.py`
+- **Launch Command:** `python -m graphmerge.mcp_server` (or the `graphmerge-mcp` console script)
+- **Virtual Environment:** Create with `python -m venv .venv && pip install -e ".[dev]"`
+- **Transport Mechanism:** Standard Input / Output (`stdio`) via the official Model Context Protocol (MCP) Python SDK (`mcp.server.mcpserver.MCPServer` or `mcp.server.fastmcp.FastMCP`).
 
 ---
 
@@ -58,6 +58,6 @@ The server exposes 4 MCP tools:
 - **Required Environment Variables:** None (`os.environ` is not utilized for core operation).
 - **API Keys / External Services:** None (fully local execution using Python, NetworkX, PuLP, and Tree-Sitter).
 - **Configuration Files:**
-  - `~/.mcp.json` / `~/.agents/skills/graphmerge-mcp/SKILL.md`
-  - `/Users/braj/graphmerge/.mcp.json`
-  - `/Users/braj/.claude/settings.local.json` (`enabledMcpjsonServers: ["graphmerge"]`)
+  - Project-level: `.mcp.json` in the repository root
+  - Claude Code: `claude mcp add graphmerge -- python -m graphmerge.mcp_server`
+  - Antigravity / Cursor: see README for per-client setup

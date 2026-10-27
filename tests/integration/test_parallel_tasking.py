@@ -1,13 +1,15 @@
 import time
-import pytest
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from graphmerge.orchestration.supervisor import build_graphmerge_state_graph
-from graphmerge.orchestration.state import GraphMergeState, AgentProposal
+
+from graphmerge.analysis.ast_parser import validate_diff_syntax
 from graphmerge.optimization.solver import ConflictGraphOptimizer
-from graphmerge.analysis.ast_parser import extract_symbol_analysis, validate_diff_syntax
+from graphmerge.orchestration.state import AgentProposal, GraphMergeState
+from graphmerge.orchestration.supervisor import build_graphmerge_state_graph
 
 
-def simulate_parallel_worker(task_id: str, file_name: str, symbol_name: str, weight: float) -> AgentProposal:
+def simulate_parallel_worker(
+    task_id: str, file_name: str, symbol_name: str, weight: float
+) -> AgentProposal:
     """Simulates an autonomous AI worker agent running in a parallel thread:
 
     1. Analyzes target source code with AST parsing.
@@ -85,10 +87,16 @@ def test_concurrent_worker_dispatch_and_arbitration():
 
     # Coordinator arbitrates the concurrently submitted proposals
     optimizer = ConflictGraphOptimizer()
-    g = optimizer.build_conflict_graph([
-        {"id": p["id"], "symbol_analysis": p["symbol_analysis"], "weight": p["verified_local_gain"]}
-        for p in proposals
-    ])
+    g = optimizer.build_conflict_graph(
+        [
+            {
+                "id": p["id"],
+                "symbol_analysis": p["symbol_analysis"],
+                "weight": p["verified_local_gain"],
+            }
+            for p in proposals
+        ]
+    )
 
     assert g.number_of_nodes() == 8
     # Should identify 2 conflict edges: (prop_T1, prop_T2) and (prop_T3, prop_T4)
@@ -128,11 +136,21 @@ def test_end_to_end_parallel_backlog_convergence():
 
     parallel_tasks = [
         {"id": "TASK-1", "file": "data.py", "func": "clean_data", "weight": 10.0},
-        {"id": "TASK-2", "file": "data.py", "func": "clean_data", "weight": 8.0},  # Collides with TASK-1
+        {
+            "id": "TASK-2",
+            "file": "data.py",
+            "func": "clean_data",
+            "weight": 8.0,
+        },  # Collides with TASK-1
         {"id": "TASK-3", "file": "net.py", "func": "connect", "weight": 12.0},
-        {"id": "TASK-4", "file": "net.py", "func": "connect", "weight": 7.0},    # Collides with TASK-3
-        {"id": "TASK-5", "file": "render.py", "func": "draw", "weight": 15.0},    # Independent
-        {"id": "TASK-6", "file": "export.py", "func": "to_csv", "weight": 11.0},   # Independent
+        {
+            "id": "TASK-4",
+            "file": "net.py",
+            "func": "connect",
+            "weight": 7.0,
+        },  # Collides with TASK-3
+        {"id": "TASK-5", "file": "render.py", "func": "draw", "weight": 15.0},  # Independent
+        {"id": "TASK-6", "file": "export.py", "func": "to_csv", "weight": 11.0},  # Independent
     ]
 
     # Generate proposals concurrently

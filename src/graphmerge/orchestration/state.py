@@ -1,4 +1,6 @@
-from typing import TypedDict, List, Dict, Set, Any, Optional
+from typing import Any, TypedDict
+
+from graphmerge.analysis.ast_parser import SymbolAnalysis
 
 
 class LocalVerification(TypedDict, total=False):
@@ -6,17 +8,14 @@ class LocalVerification(TypedDict, total=False):
     syntax_valid: bool
     tests_passed: bool
     empirical_gain: float  # Delta f_i > 0
-    error_message: Optional[str]
+    error_message: str | None
 
 
 class CollisionContext(TypedDict, total=False):
-    conflicting_proposal_ids: List[str]
-    conflict_reasons: List[Dict[str, Any]]
+    conflicting_proposal_ids: list[str]
+    conflict_reasons: list[dict[str, Any]]
     accepted_patch_diffs: str
     reprompt_instruction: str
-
-
-from graphmerge.analysis.ast_parser import SymbolAnalysis
 
 
 class AgentProposal(TypedDict, total=False):
@@ -24,26 +23,27 @@ class AgentProposal(TypedDict, total=False):
     agent_id: str
     task_id: str
     diff_content: str
-    target_files: List[str]
-    touched_symbols: Dict[str, Set[str]]  # File -> Set of modified symbol names
-    symbol_analysis: Dict[str, SymbolAnalysis]  # File -> SymbolAnalysis (defs, calls, imports)
+    target_files: list[str]
+    touched_symbols: dict[str, set[str]]  # File -> Set of modified symbol names
+    symbol_analysis: dict[str, SymbolAnalysis]  # File -> SymbolAnalysis (defs, calls, imports)
     verified_local_gain: float
-    verification: Optional[LocalVerification]
-    collision_context: Optional[CollisionContext]
-    adapted_from_id: Optional[str]  # Reference to previous iteration proposal if re-prompted
+    verification: LocalVerification | None
+    collision_context: CollisionContext | None
+    adapted_from_id: str | None  # Reference to previous iteration proposal if re-prompted
 
 
 class GraphMergeState(TypedDict, total=False):
     workspace_path: str
+    test_command: str | None
     current_baseline: str  # e.g., "s_0", "s_1", or commit sha
     iteration: int
     max_iterations: int
-    active_backlog: List[Dict[str, Any]]
-    proposals: List[AgentProposal]
-    newly_accepted: List[AgentProposal]
-    accepted_patches: List[AgentProposal]
-    staged_patches: List[AgentProposal]
-    rejected_unverified_patches: List[AgentProposal]
+    active_backlog: list[dict[str, Any]]
+    proposals: list[AgentProposal]
+    newly_accepted: list[AgentProposal]
+    accepted_patches: list[AgentProposal]
+    staged_patches: list[AgentProposal]
+    rejected_unverified_patches: list[AgentProposal]
     is_converged: bool
-    conflict_diagnostics: List[Dict[str, Any]]
-    summary_report: Optional[Dict[str, Any]]
+    conflict_diagnostics: list[dict[str, Any]]
+    summary_report: dict[str, Any] | None

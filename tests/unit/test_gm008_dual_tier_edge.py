@@ -28,7 +28,11 @@ def test_both_tiers_are_preserved_on_one_edge():
     data = optimizer.graph.edges["p1", "p2"]
     assert data["conflict_type"] == "TIER1_AND_TIER2_COLLISION"
     assert data["tier"] == "1+2"
-    assert "helper" in data["symbol"] if isinstance(data["symbol"], list) else data["symbol"] == "helper"
+    assert (
+        "helper" in data["symbol"]
+        if isinstance(data["symbol"], list)
+        else data["symbol"] == "helper"
+    )
 
     diagnostics = optimizer.get_conflict_diagnostics()
     assert diagnostics[0]["conflict_type"] == "TIER1_AND_TIER2_COLLISION"
