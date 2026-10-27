@@ -22,7 +22,7 @@
   {
     "worker": "W5_mwis_arbitration",
     "status": "PASS",
-    "evidence": "MWIS optimal: accepted={'p1', 'p3'}, deferred={'p2'}, bound=0.5"
+    "evidence": "MWIS optimal: accepted={'p3', 'p1'}, deferred={'p2'}, bound=0.5"
   },
   {
     "worker": "W6_determinism",
@@ -42,6 +42,6 @@
   {
     "worker": "W9_verification",
     "status": "PASS",
-    "evidence": "Verified: edges=[('a', 'b')], accepted={'c', 'a'}, 1/chi_f bound=0.5"
+    "evidence": "Verified: edges=[('a', 'b')], accepted={'a', 'c'}, 1/chi_f bound=0.5"
   }
 ]
