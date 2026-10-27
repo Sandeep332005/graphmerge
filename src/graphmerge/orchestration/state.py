@@ -35,6 +35,7 @@ class AgentProposal(TypedDict, total=False):
 class GraphMergeState(TypedDict, total=False):
     workspace_path: str
     test_command: str | None
+    worker_config: dict[str, Any] | None
     current_baseline: str  # e.g., "s_0", "s_1", or commit sha
     iteration: int
     max_iterations: int

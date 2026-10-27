@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -5,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 from graphmerge.analysis.ast_parser import validate_diff_syntax
 from graphmerge.optimization.solver import ConflictGraphOptimizer
 from graphmerge.orchestration.checkpoint import CheckpointStore
-from graphmerge.orchestration.dispatch import PassthroughWorker, WorkerPool
+from graphmerge.orchestration.dispatch import WorkerPool
 from graphmerge.orchestration.sandbox import sandbox_integration_node_real
 from graphmerge.orchestration.state import (
     AgentProposal,
@@ -13,6 +14,8 @@ from graphmerge.orchestration.state import (
     GraphMergeState,
     LocalVerification,
 )
+
+log = logging.getLogger("graphmerge")
 
 
 def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
@@ -30,10 +33,16 @@ def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
         return {"current_baseline": baseline, "proposals": proposals}
 
     if backlog:
-        worker = PassthroughWorker(proposals)
-        pool = WorkerPool(worker)
-        generated = pool.dispatch(backlog, baseline)
-        return {"current_baseline": baseline, "proposals": generated}
+        worker_cfg = state.get("worker_config")
+        if worker_cfg and "worker" in worker_cfg:
+            worker = worker_cfg["worker"]
+            if not hasattr(worker, "generate_proposal"):
+                log.warning("worker_config['worker'] missing generate_proposal method")
+                return {"current_baseline": baseline, "proposals": []}
+            pool = WorkerPool(worker)
+            generated = pool.dispatch(backlog, baseline)
+            return {"current_baseline": baseline, "proposals": generated}
+        return {"current_baseline": baseline, "proposals": []}
 
     return {"current_baseline": baseline, "proposals": []}
 

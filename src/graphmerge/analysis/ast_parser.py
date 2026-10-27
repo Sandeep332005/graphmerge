@@ -366,13 +366,13 @@ def extract_symbol_analysis(
     if parser is not None:
         cfg = _LANG_NODE_CFG.get(language)
         if cfg:
-            return _ts_symbol_analysis(parser, file_content, modified_lines, cfg)
+            return _ts_symbol_analysis(parser, file_content, modified_lines, cfg, language)
 
     # Fallback: Python ast module (only works for Python)
     if language == "python":
         if TREE_SITTER_AVAILABLE and _parser is not None:
             return _ts_symbol_analysis(
-                _parser, file_content, modified_lines, _LANG_NODE_CFG["python"]
+                _parser, file_content, modified_lines, _LANG_NODE_CFG["python"], "python"
             )
         return _python_ast_fallback_analysis(file_content, modified_lines)
 
@@ -385,9 +385,13 @@ def _ts_symbol_analysis(
     file_content: bytes,
     modified_lines: list[int],
     cfg: dict,
+    language: str = "python",
 ) -> SymbolAnalysis:
     """Generic tree-sitter analysis using per-language node config."""
-    cache_key = hashlib.sha256(file_content).hexdigest()
+    h = hashlib.sha256(file_content)
+    h.update(b"\x00")
+    h.update(language.encode("utf-8"))
+    cache_key = h.hexdigest()
     if cache_key in _AST_CACHE:
         tree = _AST_CACHE[cache_key]
     else:
