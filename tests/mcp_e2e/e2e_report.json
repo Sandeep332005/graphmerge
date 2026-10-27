@@ -7,22 +7,22 @@
   {
     "worker": "W2_happy_path",
     "status": "PASS",
-    "evidence": "Arbitration success: accepted=['p2', 'p1']"
+    "evidence": "Arbitration success: accepted=['p1', 'p2']"
   },
   {
     "worker": "W3_bad_input",
     "status": "PASS",
-    "evidence": "Successfully caught bad input with error: Expecting value: line 1 column 1 (char 0)"
+    "evidence": "Caught bad input: Expecting value: line 1 column 1 (char 0)"
   },
   {
     "worker": "W4_conflict_graph",
     "status": "PASS",
-    "evidence": "Correctly detected conflict: type=TIER1_SYNTACTIC_COLLISION, symbol=add"
+    "evidence": "Detected conflict: type=TIER1_SYNTACTIC_COLLISION, symbol=add"
   },
   {
     "worker": "W5_mwis_arbitration",
     "status": "PASS",
-    "evidence": "MWIS optimal selection: accepted={'p3', 'p1'}, deferred={'p2'}, bound=0.5"
+    "evidence": "MWIS optimal: accepted={'p1', 'p3'}, deferred={'p2'}, bound=0.5"
   },
   {
     "worker": "W6_determinism",
@@ -42,6 +42,6 @@
   {
     "worker": "W9_verification",
     "status": "PASS",
-    "evidence": "Independent verification passed: edges=[('a', 'b')], accepted={'a', 'c'}, 1/chi_f bound=0.5"
+    "evidence": "Verified: edges=[('a', 'b')], accepted={'c', 'a'}, 1/chi_f bound=0.5"
   }
 ]

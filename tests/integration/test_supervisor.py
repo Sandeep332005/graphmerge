@@ -1,6 +1,5 @@
-import pytest
-from graphmerge.orchestration.supervisor import build_graphmerge_state_graph
 from graphmerge.orchestration.state import GraphMergeState
+from graphmerge.orchestration.supervisor import build_graphmerge_state_graph
 
 
 def test_full_langgraph_pipeline_execution():
@@ -66,7 +65,13 @@ def test_full_langgraph_pipeline_execution():
     # Cycle 1: Accepts independent set {p1, p3}, stages {p2}
     # Cycle 2: Rebases and integrates {p2} onto the updated baseline
     # Result: All 3 tasks successfully resolved, 0 remaining staged, converged!
-    assert accepted_ids == {"p1", "p2", "p3"}, f"Expected all 3 accepted across 2 cycles, got {accepted_ids}"
+    assert accepted_ids == {
+        "p1",
+        "p2",
+        "p3",
+    }, f"Expected all 3 accepted across 2 cycles, got {accepted_ids}"
     assert staged_ids == set(), f"Expected empty staged queue upon convergence, got {staged_ids}"
     assert final_output["is_converged"] is True
-    assert final_output["iteration"] == 2, f"Expected convergence in 2 cycles, got {final_output['iteration']}"
+    assert (
+        final_output["iteration"] == 2
+    ), f"Expected convergence in 2 cycles, got {final_output['iteration']}"

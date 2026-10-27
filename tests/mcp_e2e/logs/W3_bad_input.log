@@ -28,3 +28,23 @@
   "status": "error",
   "message": "Expecting value: line 1 column 1 (char 0)"
 }
+[2026-10-26 22:42:09] Sending malformed JSON to arbitrate_diff_patches...
+[2026-10-26 22:42:09] Response: {
+  "status": "error",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+}
+[2026-10-26 23:01:57] Sending malformed JSON to arbitrate_diff_patches...
+[2026-10-26 23:01:57] Response: {
+  "status": "error",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+}
+[2026-10-27 19:01:09] Sending malformed JSON to arbitrate_diff_patches...
+[2026-10-27 19:01:09] Response: {
+  "status": "error",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+}
+[2026-10-27 19:11:09] Sending malformed JSON to arbitrate_diff_patches...
+[2026-10-27 19:11:10] Response: {
+  "status": "error",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+}

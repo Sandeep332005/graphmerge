@@ -1,9 +1,6 @@
-import pytest
 from graphmerge.analysis.ast_parser import (
     extract_symbol_analysis,
-    extract_symbols_from_source,
     validate_diff_syntax,
-    validate_source_syntax,
 )
 from graphmerge.optimization.solver import ConflictGraphOptimizer
 
@@ -29,7 +26,7 @@ def test_tier2_def_use_conflict_resolution():
 
     Proposal A modifies definition of `calculate_tax` in `math.py`.
     Proposal B modifies `billing.py` and calls `calculate_tax`.
-    The optimizer must identify the cross-file semantic collision and prevent concurrent application.
+    The optimizer must detect the cross-file semantic collision and block concurrent apply.
     """
     optimizer = ConflictGraphOptimizer()
 

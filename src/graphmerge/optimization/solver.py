@@ -1,6 +1,7 @@
-import networkx as nx
-from typing import List, Dict, Set, Tuple, Any, Optional
 from collections import defaultdict
+from typing import Any
+
+import networkx as nx
 
 
 class ConflictGraphOptimizer:
@@ -19,13 +20,8 @@ class ConflictGraphOptimizer:
     def __init__(self):
         self.graph = nx.Graph()
 
-    def build_conflict_graph(self, proposals: List[Dict[str, Any]]) -> nx.Graph:
-        """Constructs an undirected conflict graph G = (V, E) using Two-Tier Inverted Indexing.
-
-        Accepts proposals containing either:
-        - `files`: Dict[str, Set[str]] (Tier 1 syntactic definitions)
-        - `symbol_analysis`: Dict[str, Dict[str, Set[str]]] (Tier 1 & 2 definitions, calls, imports)
-        """
+    def build_conflict_graph(self, proposals: list[dict[str, Any]]) -> nx.Graph:
+        """Constructs an undirected conflict graph G = (V, E) using Two-Tier Inverted Indexing."""
         self.graph.clear()
         if not proposals:
             return self.graph
@@ -36,25 +32,19 @@ class ConflictGraphOptimizer:
             pid = p["id"]
             if pid in seen_ids:
                 raise ValueError(
-                    f"Duplicate proposal id '{pid}'. "
-                    "Each proposal must have a unique id."
+                    f"Duplicate proposal id '{pid}'. " "Each proposal must have a unique id."
                 )
             seen_ids.add(pid)
             self.graph.add_node(
                 pid,
                 weight=float(p.get("weight", 1.0)),
                 files=p.get("files", {}),
-                symbol_analysis=p.get("symbol_analysis", {})
+                symbol_analysis=p.get("symbol_analysis", {}),
             )
 
-        # Inverted Indices
-        # 1. Tier 1: (file_path, def_name) -> list of proposal IDs
-        tier1_def_index: Dict[Tuple[str, str], List[str]] = defaultdict(list)
-
-        # 2. Tier 2: symbol_name -> list of (proposal_id, file_path) producers
-        tier2_producers: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
-        # Tier 2: symbol_name -> list of (proposal_id, file_path) consumers (calls or imports)
-        tier2_consumers: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
+        tier1_def_index: dict[tuple[str, str], list[str]] = defaultdict(list)
+        tier2_producers: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        tier2_consumers: dict[str, list[tuple[str, str]]] = defaultdict(list)
 
         for p in proposals:
             p_id = p["id"]
@@ -90,7 +80,8 @@ class ConflictGraphOptimizer:
                     for j in range(i + 1, len(touching_ids)):
                         u, v = touching_ids[i], touching_ids[j]
                         self._record_conflict(
-                            u, v,
+                            u,
+                            v,
                             conflict_type="TIER1_SYNTACTIC_COLLISION",
                             tier=1,
                             file=file_path,
@@ -101,11 +92,12 @@ class ConflictGraphOptimizer:
         for symbol, producers in tier2_producers.items():
             if symbol in tier2_consumers:
                 consumers = tier2_consumers[symbol]
-                for (p_prod, f_prod) in producers:
-                    for (p_cons, f_cons) in consumers:
+                for p_prod, f_prod in producers:
+                    for p_cons, f_cons in consumers:
                         if p_prod != p_cons:
                             self._record_conflict(
-                                p_prod, p_cons,
+                                p_prod,
+                                p_cons,
                                 conflict_type="TIER2_DEF_USE_COLLISION",
                                 tier=2,
                                 producer=p_prod,
@@ -135,8 +127,7 @@ class ConflictGraphOptimizer:
             data["tier"] = "1+2"
             data["conflict_type"] = "TIER1_AND_TIER2_COLLISION"
 
-        for key in ("symbol", "file", "producer", "consumer",
-                    "producer_file", "consumer_file"):
+        for key in ("symbol", "file", "producer", "consumer", "producer_file", "consumer_file"):
             incoming = attrs.get(key)
             if incoming is None:
                 continue
@@ -149,7 +140,7 @@ class ConflictGraphOptimizer:
                     merged.append(incoming)
                 data[key] = merged
 
-    def solve_mwis(self) -> Tuple[Set[str], Set[str]]:
+    def solve_mwis(self) -> tuple[set[str], set[str]]:
         """Solves Maximum Weight Independent Set using Divide-and-Conquer over
         connected components.
         """
@@ -178,8 +169,7 @@ class ConflictGraphOptimizer:
                 comp_g = nx.complement(subgraph.copy())
                 cliques = list(nx.find_cliques(comp_g))
                 best_sub_is = max(
-                    cliques,
-                    key=lambda c: sum(subgraph.nodes[n].get("weight", 1.0) for n in c)
+                    cliques, key=lambda c: sum(subgraph.nodes[n].get("weight", 1.0) for n in c)
                 )
                 total_accepted.update(best_sub_is)
             else:
@@ -189,15 +179,14 @@ class ConflictGraphOptimizer:
         rejected = set(self.graph.nodes()) - total_accepted
         return total_accepted, rejected
 
-    def _greedy_weighted_independent_set(self, g: nx.Graph) -> Set[str]:
+    def _greedy_weighted_independent_set(self, g: nx.Graph) -> set[str]:
         """Fast greedy approximation for large components (|V| > 25)."""
         remaining = set(g.nodes())
         selected = set()
 
         while remaining:
             best_node = max(
-                remaining,
-                key=lambda n: g.nodes[n].get("weight", 1.0) / (g.degree(n) + 1)
+                remaining, key=lambda n: g.nodes[n].get("weight", 1.0) / (g.degree(n) + 1)
             )
             selected.add(best_node)
             neighbors = set(g.neighbors(best_node))
@@ -206,17 +195,19 @@ class ConflictGraphOptimizer:
 
         return selected
 
-    def get_conflict_diagnostics(self) -> List[Dict[str, Any]]:
+    def get_conflict_diagnostics(self) -> list[dict[str, Any]]:
         """Exports human- and agent-readable conflict metadata for all edges in G."""
         diagnostics = []
         for u, v, data in self.graph.edges(data=True):
-            diagnostics.append({
-                "nodes": [u, v],
-                "conflict_type": data.get("conflict_type", "COLLISION"),
-                "tier": data.get("tier", 1),
-                "symbol": data.get("symbol", ""),
-                "details": data
-            })
+            diagnostics.append(
+                {
+                    "nodes": [u, v],
+                    "conflict_type": data.get("conflict_type", "COLLISION"),
+                    "tier": data.get("tier", 1),
+                    "symbol": data.get("symbol", ""),
+                    "details": data,
+                }
+            )
         return diagnostics
 
     def compute_fractional_bound(self) -> float:
@@ -224,7 +215,9 @@ class ConflictGraphOptimizer:
         if self.graph.number_of_nodes() == 0:
             return 1.0
         try:
-            d_max = max(dict(self.graph.degree()).values()) if self.graph.number_of_edges() > 0 else 0
+            d_max = (
+                max(dict(self.graph.degree()).values()) if self.graph.number_of_edges() > 0 else 0
+            )
             chi_estimate = max(1, d_max + 1)
             return 1.0 / float(chi_estimate)
         except Exception:

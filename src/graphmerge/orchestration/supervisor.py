@@ -1,43 +1,59 @@
-from typing import Dict, Any, List, Set, Optional
-from langgraph.graph import StateGraph, START, END
+from typing import Any
+
+from langgraph.graph import END, START, StateGraph
+
+from graphmerge.analysis.ast_parser import validate_diff_syntax
+from graphmerge.optimization.solver import ConflictGraphOptimizer
+from graphmerge.orchestration.checkpoint import CheckpointStore
+from graphmerge.orchestration.dispatch import WorkerPool
+from graphmerge.orchestration.sandbox import sandbox_integration_node_real
 from graphmerge.orchestration.state import (
-    GraphMergeState,
     AgentProposal,
     CollisionContext,
+    GraphMergeState,
     LocalVerification,
 )
-from graphmerge.optimization.solver import ConflictGraphOptimizer
-from graphmerge.analysis.ast_parser import validate_source_syntax, validate_diff_syntax
 
 
-def worker_fanout_node(state: GraphMergeState) -> Dict[str, Any]:
+def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
     """Coordinates task fan-out and proposal intake.
 
-    In production, LangGraph's Send API runs concurrent agent workers.
-    """
-    return {
-        "current_baseline": state.get("current_baseline", "s_0"),
-        "proposals": state.get("proposals", []),
-    }
-
-
-def worker_preverification_node(state: GraphMergeState) -> Dict[str, Any]:
-    """Architectural Fix 2: Worker Pre-Verification.
-
-    Validates candidate patches before they enter the coordinator's conflict graph:
-    1. Fast AST syntax sanity check (rejects malformed syntax).
-    2. Empirical local gain validation (requires Delta f_i > 0).
-    Filters failing patches into `rejected_unverified_patches` to protect the pipeline.
+    If proposals are pre-loaded (testing/MCP mode), passes them through.
+    If active_backlog exists and a worker_pool is configured, dispatches
+    tasks to agent workers for proposal generation.
     """
     proposals = state.get("proposals", [])
-    valid_proposals: List[AgentProposal] = []
-    unverified_proposals: List[AgentProposal] = list(state.get("rejected_unverified_patches", []))
+    backlog = state.get("active_backlog", [])
+    baseline = state.get("current_baseline", "s_0")
+
+    if proposals:
+        return {"current_baseline": baseline, "proposals": proposals}
+
+    if backlog:
+        worker_cfg = state.get("worker_config")
+        if worker_cfg and "worker" in worker_cfg:
+            pool = WorkerPool(worker_cfg["worker"])
+            generated = pool.dispatch(backlog, baseline)
+            return {"current_baseline": baseline, "proposals": generated}
+        return {"current_baseline": baseline, "proposals": backlog}
+
+    return {"current_baseline": baseline, "proposals": []}
+
+
+def worker_preverification_node(state: GraphMergeState) -> dict[str, Any]:
+    """Validates candidate patches before conflict graph entry.
+
+    1. Fast AST syntax sanity check (rejects malformed syntax).
+    2. Empirical local gain validation (requires Delta f_i > 0).
+    """
+    proposals = state.get("proposals", [])
+    valid_proposals: list[AgentProposal] = []
+    unverified_proposals: list[AgentProposal] = list(state.get("rejected_unverified_patches", []))
 
     for p in proposals:
         gain = float(p.get("verified_local_gain", 1.0))
-        verification: Optional[LocalVerification] = p.get("verification")
+        verification: LocalVerification | None = p.get("verification")
 
-        # 1. Check if patch is explicitly marked failed or gain <= 0
         if gain <= 0.0 or (verification and verification.get("status") == "FAILED"):
             p["verification"] = {
                 "status": "FAILED",
@@ -49,7 +65,6 @@ def worker_preverification_node(state: GraphMergeState) -> Dict[str, Any]:
             unverified_proposals.append(p)
             continue
 
-        # 2. Syntax validation
         diff_text = p.get("diff_content", "")
         if diff_text:
             if not validate_diff_syntax(diff_text):
@@ -63,7 +78,6 @@ def worker_preverification_node(state: GraphMergeState) -> Dict[str, Any]:
                 unverified_proposals.append(p)
                 continue
 
-        # Validated patch
         p["verification"] = {
             "status": "PASSED",
             "syntax_valid": True,
@@ -79,11 +93,8 @@ def worker_preverification_node(state: GraphMergeState) -> Dict[str, Any]:
     }
 
 
-def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
-    """Constructs the Two-Tier conflict graph G=(V,E) and solves Maximum Weight Independent Set (MWIS).
-
-    Directly grounded in arXiv:2610.30074.
-    """
+def conflict_optimization_node(state: GraphMergeState) -> dict[str, Any]:
+    """Constructs Two-Tier conflict graph G=(V,E) and solves MWIS."""
     proposals = state.get("proposals", [])
     if not proposals:
         return {
@@ -92,7 +103,6 @@ def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
             "is_converged": True,
         }
 
-    # Format proposals for optimizer (supports both Tier 1 files and Tier 2 symbol_analysis)
     opt_payload = []
     for p in proposals:
         item = {
@@ -119,61 +129,41 @@ def conflict_optimization_node(state: GraphMergeState) -> Dict[str, Any]:
     }
 
 
-def sandbox_integration_node(state: GraphMergeState) -> Dict[str, Any]:
-    """Simulates Sandbox test verification and atomic commit of I* onto baseline.
+def sandbox_integration_node(state: GraphMergeState) -> dict[str, Any]:
+    """Applies accepted patches atomically.
 
-    Transitions baseline s_t -> s_{t+1}.
+    Uses real git worktree + test runner when workspace_path points to
+    a git repo. Falls back to stub baseline bumping otherwise.
     """
-    newly_accepted = state.get("newly_accepted", [])
-    accumulated_accepted = list(state.get("accepted_patches", [])) + newly_accepted
-    staged = state.get("staged_patches", [])
-
-    new_iter = state.get("iteration", 0) + 1
-    max_iter = state.get("max_iterations", 3)
-    new_baseline = f"s_{new_iter}"
-
-    is_converged = len(staged) == 0 or new_iter >= max_iter
-
-    return {
-        "current_baseline": new_baseline,
-        "accepted_patches": accumulated_accepted,
-        "staged_patches": staged,
-        "iteration": new_iter,
-        "is_converged": is_converged,
-    }
+    return sandbox_integration_node_real(state)
 
 
 def rebase_router(state: GraphMergeState) -> str:
-    """Checks whether deferred patches remain to iterate in the next round."""
+    """Routes to adaptive reprompt or end based on convergence."""
     if state.get("is_converged", False):
         return "end_node"
     return "adaptive_reprompt"
 
 
-def adaptive_reprompt_node(state: GraphMergeState) -> Dict[str, Any]:
-    """Architectural Fix 1: Adaptive Re-Prompting Node.
+def adaptive_reprompt_node(state: GraphMergeState) -> dict[str, Any]:
+    """Generates re-prompt instructions for deferred patches.
 
-    Replaces naive/blind `git rebase` or `git apply`.
     For each staged proposal:
     1. Extracts collision context from conflict diagnostics.
     2. Packages diffs from committed I* patches.
-    3. Prompts the agent worker with the updated baseline s_{t+1} and collision diffs.
-    4. Produces an adapted proposal ready for clean integration in the next iteration.
+    3. Builds adapted proposal with collision context for next iteration.
     """
     staged = state.get("staged_patches", [])
     accepted = state.get("accepted_patches", [])
     diagnostics = state.get("conflict_diagnostics", [])
     current_baseline = state.get("current_baseline", "s_1")
 
-    # Map accepted proposal IDs to their diffs
     accepted_map = {p["id"]: p for p in accepted}
-
-    adapted_proposals: List[AgentProposal] = []
+    adapted_proposals: list[AgentProposal] = []
 
     for p in staged:
         p_id = p["id"]
 
-        # Find which accepted proposals conflicted with this staged proposal
         colliding_ids = set()
         reasons = []
         for diag in diagnostics:
@@ -184,19 +174,22 @@ def adaptive_reprompt_node(state: GraphMergeState) -> Dict[str, Any]:
                     colliding_ids.add(other_id)
                     reasons.append(diag)
 
-        # Build collision context
         accepted_diffs = "\n\n".join(
             f"=== Accepted Diff ({cid}) ===\n{accepted_map[cid].get('diff_content', '')}"
-            for cid in colliding_ids if cid in accepted_map
+            for cid in colliding_ids
+            if cid in accepted_map
         )
 
         colliding_symbols = {r.get("symbol") for r in reasons if r.get("symbol")}
         sym_text = f" on symbol(s) {list(colliding_symbols)}" if colliding_symbols else ""
 
         instruction = (
-            f"Your prior proposal for task '{p.get('task_id')}' was deferred due to conflicts "
-            f"with patch(es) {list(colliding_ids)}{sym_text} committed into baseline {current_baseline}. "
-            f"Target symbols have been updated. Regenerate your patch grounded in {current_baseline}."
+            f"Your prior proposal for task '{p.get('task_id')}' "
+            f"was deferred due to conflicts with patch(es) "
+            f"{list(colliding_ids)}{sym_text} committed into "
+            f"baseline {current_baseline}. Target symbols have been "
+            f"updated. Regenerate your patch grounded in "
+            f"{current_baseline}."
         )
 
         collision_context: CollisionContext = {
@@ -206,23 +199,21 @@ def adaptive_reprompt_node(state: GraphMergeState) -> Dict[str, Any]:
             "reprompt_instruction": instruction,
         }
 
-        # Create adapted proposal
         adapted_proposal: AgentProposal = dict(p)
         adapted_proposal["collision_context"] = collision_context
         adapted_proposal["adapted_from_id"] = p_id
-        # In the adapted round, the agent resolves the collision against the new baseline
-        # Clear legacy touched symbols collision if adapted against updated baseline
         adapted_proposals.append(adapted_proposal)
 
-    return {
-        "proposals": adapted_proposals,
-    }
+    return {"proposals": adapted_proposals}
 
 
-def build_graphmerge_state_graph():
-    """Builds and compiles the full LangGraph state machine with 2-Tier AST,
+def build_graphmerge_state_graph(
+    checkpoint_dir: str | None = None,
+):
+    """Builds the full LangGraph state machine.
 
-    pre-verification, atomic sandbox commit, and adaptive re-prompting.
+    Args:
+        checkpoint_dir: If set, enables state checkpointing to this dir.
     """
     builder = StateGraph(GraphMergeState)
 
@@ -248,3 +239,34 @@ def build_graphmerge_state_graph():
     builder.add_edge("adaptive_reprompt", "preverification")
 
     return builder.compile()
+
+
+def run_pipeline(
+    state: dict[str, Any],
+    run_id: str | None = None,
+    checkpoint_dir: str | None = None,
+) -> dict[str, Any]:
+    """Runs the full pipeline with optional checkpoint persistence.
+
+    Args:
+        state: Initial GraphMergeState dict.
+        run_id: Unique identifier for this run (for checkpoint filename).
+        checkpoint_dir: Directory for checkpoint files. None = no persistence.
+
+    Returns:
+        Final pipeline state dict.
+    """
+    store = CheckpointStore(checkpoint_dir) if checkpoint_dir else None
+
+    if store and run_id:
+        existing = store.load(run_id)
+        if existing and not existing.get("is_converged", False):
+            state = existing
+
+    graph = build_graphmerge_state_graph(checkpoint_dir=checkpoint_dir)
+    final_state = graph.invoke(state)
+
+    if store and run_id:
+        store.save(run_id, final_state)
+
+    return final_state

@@ -1,8 +1,8 @@
-import pytest
 import json
+
 from graphmerge.mcp_server import (
-    arbitrate_merge_proposals,
     arbitrate_diff_patches_core,
+    arbitrate_merge_proposals,
     check_patch_collision_core,
     generate_reprompt_instruction,
 )
@@ -58,11 +58,13 @@ def test_mcp_diff_arbitration_and_collision_checks():
     assert no_col["has_conflict"] is False
 
     # 2. Test arbitrate_diff_patches_core
-    res = arbitrate_diff_patches_core([
-        {"id": "patch_1", "diff": diff_a, "weight": 10.0},
-        {"id": "patch_2", "diff": diff_b, "weight": 6.0},
-        {"id": "patch_3", "diff": diff_c, "weight": 14.0},
-    ])
+    res = arbitrate_diff_patches_core(
+        [
+            {"id": "patch_1", "diff": diff_a, "weight": 10.0},
+            {"id": "patch_2", "diff": diff_b, "weight": 6.0},
+            {"id": "patch_3", "diff": diff_c, "weight": 14.0},
+        ]
+    )
     assert set(res["accepted_patches"]) == {"patch_1", "patch_3"}
     assert res["deferred_patches"] == ["patch_2"]
     assert res["preservation_bound"] == 0.5

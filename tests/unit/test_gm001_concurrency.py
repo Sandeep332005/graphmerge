@@ -1,7 +1,7 @@
-
 import threading
-import time
+
 from graphmerge.mcp_server import arbitrate_merge_proposals
+
 
 def test_concurrent_optimizer_isolation():
     results = []
@@ -26,9 +26,6 @@ def test_concurrent_optimizer_isolation():
     # Result 1 should only have 'a'
     # Result 2 should only have 'b'
     # If shared optimizer was used, one might have both or one might be empty/wrong
-    nodes_res1 = results[0]["total_nodes"]
-    nodes_res2 = results[1]["total_nodes"]
-
     # We find which result corresponds to which input
     res_a = next(r for r in results if "a" in r["accepted_proposals"])
     res_b = next(r for r in results if "b" in r["accepted_proposals"])
