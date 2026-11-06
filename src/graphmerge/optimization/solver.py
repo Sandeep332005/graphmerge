@@ -69,11 +69,14 @@ class ConflictGraphOptimizer:
                     defs = analysis.get("definitions", set())
                     calls = analysis.get("calls", set())
                     imports = analysis.get("imports", set())
+                    module_name = os.path.splitext(os.path.basename(file_path))[0]
 
                     for d in defs:
                         tier1_def_index[(file_path, d)].append(p_id)
                         if d not in _COMMON_BUILTINS:
                             tier2_producers[d].append((p_id, file_path))
+                            if module_name:
+                                tier2_producers[f"{module_name}.{d}"].append((p_id, file_path))
 
                     for c in calls:
                         if c not in _COMMON_BUILTINS:

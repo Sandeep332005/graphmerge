@@ -75,3 +75,37 @@ def test_sandbox_safe_subprocess_execution(tmp_path):
     sandbox = GitSandbox(repo_path=str(tmp_path), test_command="python3 -c 'exit(0)'")
     sandbox._worktree_path = str(tmp_path)
     assert sandbox._run_tests() is True
+
+
+def test_nan_gain_rejected_in_preverification():
+    from graphmerge.orchestration.supervisor import worker_preverification_node
+    state = {
+        "proposals": [
+            {
+                "id": "p_nan",
+                "verified_local_gain": float("nan"),
+                "diff_content": "def foo(): pass",
+            }
+        ]
+    }
+    result = worker_preverification_node(state)
+    assert len(result["proposals"]) == 0
+    assert len(result["rejected_unverified_patches"]) == 1
+    rejected = result["rejected_unverified_patches"][0]
+    assert rejected["verification"]["status"] == "FAILED"
+
+
+def test_diff_path_traversal_sanitized():
+    from graphmerge.analysis.ast_parser import extract_modified_lines
+    diff = """--- a/../../../../etc/passwd
++++ b/../../../../etc/passwd
+@@ -1,1 +1,2 @@
+ root:x:0:0:root:/root:/bin/bash
++user:x:1000:1000:user:/home/user:/bin/bash
+"""
+    mods = extract_modified_lines(diff)
+    # Must not contain traversal segments (..)
+    for path in mods.keys():
+        assert ".." not in path.split("/")
+        assert path == "passwd"
+

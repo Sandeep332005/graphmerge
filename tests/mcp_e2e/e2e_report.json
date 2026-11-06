@@ -22,7 +22,7 @@
   {
     "worker": "W5_mwis_arbitration",
     "status": "PASS",
-    "evidence": "MWIS optimal: accepted={'p3', 'p1'}, deferred={'p2'}, bound=0.5"
+    "evidence": "MWIS optimal: accepted={'p1', 'p3'}, deferred={'p2'}, bound=0.5"
   },
   {
     "worker": "W6_determinism",

@@ -53,3 +53,8 @@
   "status": "error",
   "message": "Expecting value: line 1 column 1 (char 0)"
 }
+[2026-11-06 11:38:26] Sending malformed JSON to arbitrate_diff_patches...
+[2026-11-06 11:38:26] Response: {
+  "status": "error",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+}
