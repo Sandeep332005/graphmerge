@@ -11,6 +11,7 @@ implement the AgentWorker protocol.
 
 import json
 import logging
+import shlex
 import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -110,10 +111,11 @@ class SubprocessWorker:
             {"task": task, "baseline": baseline, "context": context},
             default=str,
         )
+        cmd = shlex.split(self._command) if isinstance(self._command, str) else list(self._command)
         try:
             result = subprocess.run(
-                self._command,
-                shell=True,
+                cmd,
+                shell=False,
                 input=payload,
                 capture_output=True,
                 text=True,

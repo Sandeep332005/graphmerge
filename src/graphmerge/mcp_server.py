@@ -8,6 +8,7 @@ from graphmerge.analysis.ast_parser import (
     extract_hunks_per_file,
     extract_modified_lines,
     extract_symbol_analysis,
+    is_non_code_file,
     validate_diff_syntax,
 )
 from graphmerge.optimization.solver import ConflictGraphOptimizer
@@ -88,6 +89,9 @@ def arbitrate_diff_patches_core(
 
         symbol_analysis: dict[str, Any] = {}
         for file_path in lines_by_file:
+            if is_non_code_file(file_path):
+                symbol_analysis[file_path] = {"definitions": set(), "calls": set(), "imports": set()}
+                continue
             lang = detect_language(file_path)
             code = hunks_by_file.get(file_path, "")
             code_bytes = code.encode("utf-8", errors="ignore")

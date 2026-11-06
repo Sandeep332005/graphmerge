@@ -1,7 +1,19 @@
 from collections import defaultdict
+import os
 from typing import Any
 
 import networkx as nx
+
+_COMMON_BUILTINS: frozenset[str] = frozenset({
+    "abs", "all", "any", "bool", "bytes", "dict", "dir", "enumerate",
+    "filter", "float", "format", "getattr", "hasattr", "hash", "help",
+    "id", "input", "int", "isinstance", "issubclass", "iter", "len",
+    "list", "map", "max", "min", "next", "object", "open", "print",
+    "range", "repr", "reversed", "round", "set", "setattr", "slice",
+    "sorted", "str", "sum", "super", "tuple", "type", "zip",
+    "console", "require", "process", "window", "document",
+    "Math", "JSON", "Promise", "Array", "Object", "String", "Number",
+})
 
 
 class ConflictGraphOptimizer:
@@ -60,18 +72,22 @@ class ConflictGraphOptimizer:
 
                     for d in defs:
                         tier1_def_index[(file_path, d)].append(p_id)
-                        tier2_producers[d].append((p_id, file_path))
+                        if d not in _COMMON_BUILTINS:
+                            tier2_producers[d].append((p_id, file_path))
 
                     for c in calls:
-                        tier2_consumers[c].append((p_id, file_path))
+                        if c not in _COMMON_BUILTINS:
+                            tier2_consumers[c].append((p_id, file_path))
                     for imp in imports:
-                        tier2_consumers[imp].append((p_id, file_path))
+                        if imp not in _COMMON_BUILTINS:
+                            tier2_consumers[imp].append((p_id, file_path))
             else:
                 # Legacy / shorthand files dict (Tier 1)
                 for file_path, symbols in files_dict.items():
                     for symbol in symbols:
                         tier1_def_index[(file_path, symbol)].append(p_id)
-                        tier2_producers[symbol].append((p_id, file_path))
+                        if symbol not in _COMMON_BUILTINS:
+                            tier2_producers[symbol].append((p_id, file_path))
 
         # --- Generate Tier 1 Edges (Syntactic Collision in Same File & Definition) ---
         for (file_path, symbol), touching_ids in tier1_def_index.items():
@@ -90,6 +106,8 @@ class ConflictGraphOptimizer:
 
         # --- Generate Tier 2 Edges (Semantic Def-Use Call Graph Collisions) ---
         for symbol, producers in tier2_producers.items():
+            if symbol in _COMMON_BUILTINS:
+                continue
             if symbol in tier2_consumers:
                 consumers = tier2_consumers[symbol]
                 for p_prod, f_prod in producers:

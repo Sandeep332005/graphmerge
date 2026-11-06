@@ -70,6 +70,37 @@ _EXT_TO_LANG: dict[str, str] = {
     ".java": "java",
 }
 
+_NON_CODE_EXTS: frozenset[str] = frozenset({
+    ".md",
+    ".markdown",
+    ".txt",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".xml",
+    ".html",
+    ".css",
+    ".csv",
+    ".tsv",
+    ".rst",
+    ".svg",
+    ".lock",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".pdf",
+})
+
+
+def is_non_code_file(file_path: str) -> bool:
+    """Checks whether the file is non-code (documentation, data, markup, asset)."""
+    _, ext = os.path.splitext(file_path)
+    return ext.lower() in _NON_CODE_EXTS
+
 # Per-language tree-sitter node-type config.
 # Each entry: (node_types_that_define, child_type_holding_name)
 # For calls: (call_node_type, [possible child types for callee name])
@@ -251,6 +282,8 @@ _AST_CACHE: _BoundedCache = _BoundedCache(256)
 def detect_language(file_path: str) -> str:
     """Detects programming language from file extension."""
     _, ext = os.path.splitext(file_path)
+    if ext.lower() in _NON_CODE_EXTS:
+        return "unknown"
     return _EXT_TO_LANG.get(ext.lower(), "python")
 
 
@@ -267,7 +300,11 @@ def extract_modified_lines(diff_text: str) -> dict[str, list[int]]:
 
     for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
-            current_file = line[6:].strip()
+            raw_path = line[6:].strip()
+            clean_path = os.path.normpath(raw_path).lstrip("/")
+            if ".." in clean_path.split(os.sep):
+                clean_path = os.path.basename(clean_path)
+            current_file = clean_path
             files_modified.setdefault(current_file, [])
             new_line = 0
         elif line.startswith("@@ ") and current_file:
@@ -312,7 +349,11 @@ def extract_hunks_per_file(diff_text: str) -> dict[str, str]:
 
     for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
-            current_file = line[6:].strip()
+            raw_path = line[6:].strip()
+            clean_path = os.path.normpath(raw_path).lstrip("/")
+            if ".." in clean_path.split(os.sep):
+                clean_path = os.path.basename(clean_path)
+            current_file = clean_path
             file_lines.setdefault(current_file, [])
             continue
         if line.startswith(("diff --git", "--- ", "@@", "index ", "\\")):
@@ -383,6 +424,8 @@ def extract_symbol_analysis(
     """
     if not modified_lines:
         return {"definitions": set(), "calls": set(), "imports": set()}
+    if language == "unknown":
+        return {"definitions": {"__file__"}, "calls": set(), "imports": set()}
 
     # Try tree-sitter for the requested language
     parser, _ = _get_parser(language)
@@ -637,7 +680,10 @@ def validate_diff_syntax(diff_text: str) -> bool:
         lang = "python"
         for line in lines:
             if line.startswith("+++ b/"):
-                lang = detect_language(line[6:].strip())
+                target_f = line[6:].strip()
+                if is_non_code_file(target_f):
+                    return True
+                lang = detect_language(target_f)
                 break
         if lang == "python":
             return _validate_python_syntax(diff_text, lines, False)
@@ -658,6 +704,8 @@ def validate_diff_syntax(diff_text: str) -> bool:
 
     for file_path, added_lines in file_map.items():
         if not added_lines:
+            continue
+        if is_non_code_file(file_path):
             continue
         snippet = "\n".join(added_lines)
         if not snippet.strip():

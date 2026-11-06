@@ -6,6 +6,7 @@ Replaces the stub sandbox_integration_node.
 
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -149,9 +150,15 @@ class GitSandbox:
     def _run_tests(self) -> bool:
         if not self.test_command:
             return True
+        if isinstance(self.test_command, str):
+            cmd = shlex.split(self.test_command)
+        else:
+            cmd = list(self.test_command)
+        if not cmd:
+            return True
         result = subprocess.run(
-            self.test_command,
-            shell=True,
+            cmd,
+            shell=False,
             cwd=self._worktree_path,
             capture_output=True,
             text=True,

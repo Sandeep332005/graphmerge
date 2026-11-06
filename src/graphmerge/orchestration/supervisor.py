@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -30,6 +31,22 @@ def worker_fanout_node(state: GraphMergeState) -> dict[str, Any]:
     baseline = state.get("current_baseline", "s_0")
 
     if proposals:
+        worker_cfg = state.get("worker_config")
+        worker = worker_cfg.get("worker") if worker_cfg else None
+        if worker and hasattr(worker, "generate_proposal") and any("collision_context" in p for p in proposals):
+            regenerated = []
+            for p in proposals:
+                if "collision_context" in p:
+                    task = {"id": p.get("task_id", p["id"]), "target_files": p.get("target_files", [])}
+                    new_p = worker.generate_proposal(task, baseline, context=p["collision_context"])
+                    if new_p:
+                        new_p["adapted_from_id"] = p["id"]
+                        regenerated.append(new_p)
+                    else:
+                        regenerated.append(p)
+                else:
+                    regenerated.append(p)
+            return {"current_baseline": baseline, "proposals": regenerated}
         return {"current_baseline": baseline, "proposals": proposals}
 
     if backlog:
@@ -61,13 +78,13 @@ def worker_preverification_node(state: GraphMergeState) -> dict[str, Any]:
         gain = float(p.get("verified_local_gain", 1.0))
         verification: LocalVerification | None = p.get("verification")
 
-        if gain <= 0.0 or (verification and verification.get("status") == "FAILED"):
+        if not math.isfinite(gain) or gain <= 0.0 or (verification and verification.get("status") == "FAILED"):
             p["verification"] = {
                 "status": "FAILED",
                 "syntax_valid": verification.get("syntax_valid", False) if verification else True,
                 "tests_passed": False,
                 "empirical_gain": gain,
-                "error_message": "Negative or zero empirical gain Delta f_i <= 0",
+                "error_message": "Non-finite, negative, or zero empirical gain Delta f_i <= 0",
             }
             unverified_proposals.append(p)
             continue
@@ -237,7 +254,7 @@ def build_graphmerge_state_graph():
             "adaptive_reprompt": "adaptive_reprompt",
         },
     )
-    builder.add_edge("adaptive_reprompt", "preverification")
+    builder.add_edge("adaptive_reprompt", "fanout")
 
     return builder.compile()
 
