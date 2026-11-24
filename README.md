@@ -33,6 +33,46 @@ GraphMerge models parallel multi-agent code integration as **Discrete Block Opti
 
 ---
 
+## ⚡ 10-Second Quickstart Demo
+
+See GraphMerge AST conflict arbitration and MWIS discrete block optimization in action with a single command (no configuration or external services required):
+
+```bash
+# Run the interactive terminal demo
+graphmerge demo
+
+# Or run via Python module
+python3 -m graphmerge.cli demo
+```
+
+```text
+=== GraphMerge: Distributed Block Optimization Demo ===
+Reference Implementation: arXiv:2610.30074
+
+1. Proposing Agent Patches:
+  • agent-alpha (weight 0.85): refactors `process_payment` (loyalty discount)
+  • agent-beta  (weight 0.95): refactors `process_payment` (multi-currency)
+  • agent-gamma (weight 0.70): modifies `record_audit_event` (telemetry)
+
+2. AST Collision Detection (Tree-Sitter):
+  ✖ Conflict detected: agent-alpha <-> agent-beta
+    Type: TIER1_SYNTACTIC_COLLISION | Colliding Symbol: `process_payment`
+
+3. Maximum Weight Independent Set (MWIS) Optimal Decision:
+  ✔ Accepted Patches: ['agent-beta', 'agent-gamma']
+  ✔ Aggregate Verified Gain: 1.65
+  ✔ Theoretical Guarantee: Certified bound: 0.5
+
+4. Adaptive Feedback Loop (Reprompt for Deferred Agents):
+  ↳ Reprompt Instruction for [agent-alpha]:
+    Your proposed patch for task 'agent-alpha' was deferred by the GraphMerge coordinator
+    due to AST symbol collisions with [agent-beta] on symbol(s) [`process_payment`].
+    Accepted patch [agent-beta] has been committed to baseline s_1.
+    Please regenerate your patch grounded in the updated symbols in s_1.
+```
+
+---
+
 ## 🏗️ System Architecture
 
 ### 1. Interactive Workflow Diagram
