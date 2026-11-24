@@ -1,6 +1,8 @@
 # GraphMerge ⚡
 ### Parallel AI Agent Collaboration via Graph-Structured Distributed Block Optimization
 
+[![Release](https://img.shields.io/github/v/release/Sandeep332005/graphmerge?color=blue)](https://github.com/Sandeep332005/graphmerge/releases/tag/v0.1.0)
+[![Tests](https://img.shields.io/badge/tests-74%2F74%20passed-brightgreen.svg)](https://github.com/Sandeep332005/graphmerge/actions)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2610.30074-b31b1b.svg)](https://arxiv.org/abs/2610.30074)
