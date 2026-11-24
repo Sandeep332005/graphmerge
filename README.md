@@ -237,6 +237,13 @@ Add to `.cursor/mcp.json` or `~/.cursor/mcp.json`:
 }
 ```
 
+#### Interactive MCP Inspector (Zero-Install Browser UI):
+Test and inspect GraphMerge tools directly in your browser using the official MCP Inspector:
+```bash
+npx @modelcontextprotocol/inspector python3 -m graphmerge.mcp_server
+```
+This launches a local web UI (at `http://localhost:5173`) where you can interactively invoke `check_patch_collision`, `arbitrate_diff_patches`, and inspect AST tool traces with live breakpoints.
+
 ---
 
 
