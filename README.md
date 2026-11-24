@@ -213,26 +213,27 @@ source venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 2. Basic Python API
+### 2. High-Level Python SDK
 ```python
-from graphmerge.optimization.solver import ConflictGraphOptimizer
+import graphmerge
 
-# 1. Initialize optimizer
-optimizer = ConflictGraphOptimizer()
+# 1. Fast pair-wise AST collision check
+result = graphmerge.check_collision(diff_a, diff_b)
+if result["can_merge_concurrently"]:
+    print("Safe to merge concurrently!")
+else:
+    print(f"Collision detected on `{result['symbol']}` ({result['conflict_type']})")
 
-# 2. Define proposals with touched AST symbols and local gain scores
-proposals = [
-    {"id": "p1", "files": {"math_utils.py": {"calculate_ratio"}}, "weight": 10.0},
-    {"id": "p2", "files": {"math_utils.py": {"calculate_ratio"}}, "weight": 8.0},  # Collides with p1
-    {"id": "p3", "files": {"formatters.py": {"format_iso"}}, "weight": 12.0}       # Independent
-]
+# 2. Maximum Weight Independent Set (MWIS) multi-agent arbitration
+decision = graphmerge.arbitrate([
+    {"id": "agent-alpha", "diff": diff_alpha, "weight": 0.95},
+    {"id": "agent-beta",  "diff": diff_beta,  "weight": 0.85},
+    {"id": "agent-gamma", "diff": diff_gamma, "weight": 0.70},
+])
 
-# 3. Build graph & solve Maximum Weight Independent Set
-optimizer.build_conflict_graph(proposals)
-accepted, rejected = optimizer.solve_mwis()
-
-print("Certified Compatible Merges:", accepted)  # {'p1', 'p3'}
-print("Deferred for Round 2 Rebase:", rejected)  # {'p2'}
+print("Accepted subset:", decision["accepted_patches"])
+print("Deferred subset:", decision["deferred_patches"])
+print("Guaranteed preservation bound:", decision["preservation_bound"])
 ```
 
 ### 3. Model Context Protocol (MCP) Server
@@ -246,6 +247,16 @@ GraphMerge exposes a high-performance **Model Context Protocol (MCP)** server wi
 | `check_patch_collision` | `diff_a: str, diff_b: str` | Fast pair-wise collision check returning whether two diffs can be merged concurrently or collide (Tier 1 Syntactic definition vs. Tier 2 Cross-File Def-Use). |
 | `solve_merge` | `proposals_json: str` | Solves discrete MWIS for pre-extracted symbol touch sets. |
 | `generate_reprompt_instruction` | `task_id, colliding_patch_ids, colliding_symbols, baseline_version` | Generates context-rich re-prompt instructions for deferred agents in Cycle 2. |
+
+#### 1-Click Install via Smithery:
+Install GraphMerge for Claude or Cursor via [Smithery](https://smithery.ai/server/graphmerge):
+```bash
+# For Cursor
+npx -y @smithery/cli install graphmerge --client cursor
+
+# For Claude Desktop
+npx -y @smithery/cli install graphmerge --client claude
+```
 
 #### Setup in Claude Code:
 ```bash
