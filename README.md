@@ -1,6 +1,7 @@
 # GraphMerge ⚡
 ### Parallel AI Agent Collaboration via Graph-Structured Distributed Block Optimization
 
+[![PyPI](https://img.shields.io/pypi/v/graphmerge?color=blue)](https://pypi.org/project/graphmerge/)
 [![Release](https://img.shields.io/github/v/release/Sandeep332005/graphmerge?color=blue)](https://github.com/Sandeep332005/graphmerge/releases/tag/v0.1.0)
 [![Tests](https://img.shields.io/badge/tests-74%2F74%20passed-brightgreen.svg)](https://github.com/Sandeep332005/graphmerge/actions)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -205,12 +206,22 @@ flowchart TD
 ## 🚀 Quick Start
 
 ### 1. Installation
+
+```bash
+# Install from PyPI
+pip install graphmerge
+
+# Or install with all Tree-Sitter language grammars (JS, TS, Go, Rust, Java)
+pip install "graphmerge[languages]"
+```
+
+Or install from source:
 ```bash
 git clone https://github.com/Sandeep332005/graphmerge.git
 cd graphmerge
 python3 -m venv venv
 source venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[languages]"
 ```
 
 ### 2. High-Level Python SDK
